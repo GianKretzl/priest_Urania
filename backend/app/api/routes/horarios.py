@@ -86,7 +86,6 @@ def atualizar_horario(horario_id: int, horario: HorarioUpdate, db: Session = Dep
 def gerar_horario(horario_id: int, request: GerarHorarioRequest, db: Session = Depends(get_db)):
     """
     Endpoint principal para gerar o horário usando o motor de otimização.
-    Similar ao sistema Urânia.
     """
     # Verificar se horário existe
     horario = db.query(HorarioModel).filter(HorarioModel.id == horario_id).first()

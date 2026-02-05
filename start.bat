@@ -1,6 +1,6 @@
 @echo off
 echo ================================
-echo   Iniciando Sistema Urania
+echo   Iniciando Sistema No Cry Baby
 echo ================================
 
 REM Verificar Python
@@ -44,7 +44,7 @@ if not exist "venv\.installed" (
 )
 
 REM Iniciar servidor
-start "Urania Backend" cmd /k python main.py
+start "No Cry Baby Backend" cmd /k python main.py
 
 echo Backend iniciado!
 
@@ -63,13 +63,13 @@ if not exist "node_modules\" (
 )
 
 REM Iniciar servidor
-start "Urania Frontend" cmd /k npm run dev
+start "No Cry Baby Frontend" cmd /k npm run dev
 
 echo Frontend iniciado!
 
 echo.
 echo ================================
-echo   Sistema Urania Iniciado!
+echo   Sistema No Cry Baby Iniciado!
 echo ================================
 echo.
 echo Backend API:     http://localhost:8000

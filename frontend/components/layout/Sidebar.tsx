@@ -54,7 +54,7 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="flex items-center space-x-2 px-4">
         <FaCalendarAlt className="text-3xl text-blue-500" />
-        <span className="text-2xl font-extrabold">Urânia</span>
+        <span className="text-2xl font-extrabold">No Cry Baby</span>
       </div>
 
       {/* Navigation */}

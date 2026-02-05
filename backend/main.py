@@ -45,7 +45,7 @@ app.include_router(horarios.router, prefix=settings.API_V1_STR)
 @app.get("/")
 def root():
     return {
-        "message": "Bem-vindo ao Sistema Urânia de Geração de Horários Escolares",
+        "message": "Bem-vindo ao Sistema No Cry Baby de Geração de Horários Escolares",
         "version": settings.VERSION,
         "docs": "/docs",
     }

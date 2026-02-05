@@ -7,7 +7,7 @@ import Header from '@/components/layout/Header'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Urânia - Sistema de Geração de Horários',
+  title: 'No Cry Baby - Sistema de Geração de Horários',
   description: 'Sistema completo para geração automática de horários escolares',
 }
 

@@ -1,6 +1,6 @@
-# 🎓 Urânia - Sistema de Geração de Horários Escolares
+# 🎓 No Cry Baby - Sistema de Geração de Horários Escolares
 
-Sistema completo de geração automática de horários escolares, similar ao sistema Urânia comercial, desenvolvido com **FastAPI** (backend) e **Next.js + Tailwind CSS** (frontend).
+Sistema completo de geração automática de horários escolares desenvolvido com **FastAPI** (backend) e **Next.js + Tailwind CSS** (frontend).
 
 ![Status](https://img.shields.io/badge/status-active-success.svg)
 ![Python](https://img.shields.io/badge/python-3.9+-blue.svg)
@@ -21,7 +21,7 @@ Sistema completo de geração automática de horários escolares, similar ao sis
 
 ## 🎯 Sobre o Projeto
 
-O **Urânia** é um sistema completo para geração automática de horários escolares que utiliza algoritmos de otimização para criar grades horárias respeitando diversas restrições, como:
+O **No Cry Baby** é um sistema completo para geração automática de horários escolares que utiliza algoritmos de otimização para criar grades horárias respeitando diversas restrições, como:
 
 - ✅ Disponibilidade de professores
 - ✅ Capacidade de salas

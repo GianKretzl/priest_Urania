@@ -7,7 +7,7 @@ export default function Home() {
       {/* Header */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">
-          Bem-vindo ao Sistema Urânia
+          Bem-vindo ao Sistema No Cry Baby
         </h1>
         <p className="text-gray-600">
           Sistema completo de geração automática de horários escolares com otimização inteligente

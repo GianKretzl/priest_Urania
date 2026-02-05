@@ -4,19 +4,19 @@ services:
   # Banco de Dados PostgreSQL
   db:
     image: postgres:15-alpine
-    container_name: urania_db
+    container_name: nocrybaby_db
     environment:
-      POSTGRES_USER: urania_user
-      POSTGRES_PASSWORD: urania_pass
-      POSTGRES_DB: urania_db
+      POSTGRES_USER: nocrybaby_user
+      POSTGRES_PASSWORD: nocrybaby_pass
+      POSTGRES_DB: nocrybaby_db
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - urania_network
+      - nocrybaby_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U urania_user"]
+      test: ["CMD-SHELL", "pg_isready -U nocrybaby_user -d nocrybaby_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -26,10 +26,11 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: urania_backend
+    container_name: nocrybaby_backend
     environment:
-      DATABASE_URL: postgresql://urania_user:urania_pass@db:5432/urania_db
+      DATABASE_URL: postgresql://nocrybaby_user:nocrybaby_pass@db:5432/nocrybaby_db
       SECRET_KEY: sua-chave-secreta-mude-em-producao
+      PYTHONUNBUFFERED: 1
     ports:
       - "8000:8000"
     depends_on:
@@ -38,7 +39,8 @@ services:
     volumes:
       - ./backend:/app
     networks:
-      - urania_network
+      - nocrybaby_network
+    restart: on-failure
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
   # Frontend Next.js
@@ -46,7 +48,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: urania_frontend
+    container_name: nocrybaby_frontend
     environment:
       API_URL: http://backend:8000/api/v1
     ports:
@@ -58,12 +60,12 @@ services:
       - /app/node_modules
       - /app/.next
     networks:
-      - urania_network
+      - nocrybaby_network
     command: npm run dev
 
 volumes:
   postgres_data:
 
 networks:
-  urania_network:
+  nocrybaby_network:
     driver: bridge

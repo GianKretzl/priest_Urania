@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🎓 Iniciando Sistema Urânia..."
+echo "🎓 Iniciando Sistema No Cry Baby..."
 echo "================================"
 
 # Cores para output

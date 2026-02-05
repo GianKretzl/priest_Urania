@@ -15,7 +15,6 @@ from app.models.turma import Turma
 class HorarioGenerator:
     """
     Motor de geração de horários usando programação com restrições (CP-SAT do OR-Tools).
-    Similar ao sistema Urânia.
     """
     
     def __init__(self, db: Session, horario_id: int):

@@ -3,7 +3,7 @@ from typing import Optional
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "Urânia - Sistema de Geração de Horários"
+    PROJECT_NAME: str = "No Cry Baby - Sistema de Geração de Horários"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
     

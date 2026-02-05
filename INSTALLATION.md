@@ -1,4 +1,4 @@
-# 🚀 Guia de Instalação e Execução - Sistema Urânia
+# 🚀 Guia de Instalação e Execução - Sistema No Cry Baby
 
 Este guia fornece instruções detalhadas para configurar e executar o sistema de geração de horários escolares.
 
@@ -87,7 +87,7 @@ nano .env  # ou use seu editor preferido
 
 Exemplo de `.env`:
 ```env
-DATABASE_URL=sqlite:///./urania.db
+DATABASE_URL=sqlite:///./nocrybaby.db
 SECRET_KEY=sua-chave-secreta-super-segura-mude-em-producao
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
@@ -95,7 +95,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 Para PostgreSQL:
 ```env
-DATABASE_URL=postgresql://usuario:senha@localhost:5432/urania_db
+DATABASE_URL=postgresql://usuario:senha@localhost:5432/nocrybaby_db
 ```
 
 ### 5. Inicialize o Banco de Dados
@@ -104,7 +104,7 @@ O banco será criado automaticamente na primeira execução se você estiver usa
 
 Para PostgreSQL, primeiro crie o banco:
 ```sql
-CREATE DATABASE urania_db;
+CREATE DATABASE nocrybaby_db;
 ```
 
 ### 6. Teste o Backend
@@ -206,16 +206,16 @@ Baixe e instale de: https://www.postgresql.org/download/windows/
 sudo -u postgres psql
 
 # Criar usuário e banco
-CREATE USER urania_user WITH PASSWORD 'sua_senha_segura';
-CREATE DATABASE urania_db OWNER urania_user;
-GRANT ALL PRIVILEGES ON DATABASE urania_db TO urania_user;
+CREATE USER nocrybaby_user WITH PASSWORD 'sua_senha_segura';
+CREATE DATABASE nocrybaby_db OWNER nocrybaby_user;
+GRANT ALL PRIVILEGES ON DATABASE nocrybaby_db TO nocrybaby_user;
 \q
 ```
 
 #### Atualizar .env
 
 ```env
-DATABASE_URL=postgresql://urania_user:sua_senha_segura@localhost:5432/urania_db
+DATABASE_URL=postgresql://nocrybaby_user:sua_senha_segura@localhost:5432/nocrybaby_db
 ```
 
 #### Instalar Driver do PostgreSQL
@@ -235,9 +235,9 @@ services:
   db:
     image: postgres:15
     environment:
-      POSTGRES_USER: urania_user
-      POSTGRES_PASSWORD: urania_pass
-      POSTGRES_DB: urania_db
+      POSTGRES_USER: nocrybaby_user
+      POSTGRES_PASSWORD: nocrybaby_pass
+      POSTGRES_DB: nocrybaby_db
     ports:
       - "5432:5432"
     volumes:

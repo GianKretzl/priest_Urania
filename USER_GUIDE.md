@@ -1,8 +1,8 @@
-# 📖 Guia do Usuário - Sistema Urânia
+# 📖 Guia do Usuário - Sistema No Cry Baby
 
 ## Introdução
 
-O Sistema Urânia é uma ferramenta completa para geração automática de horários escolares. Este guia irá ajudá-lo a utilizar todas as funcionalidades do sistema.
+O Sistema No Cry Baby é uma ferramenta completa para geração automática de horários escolares. Este guia irá ajudá-lo a utilizar todas as funcionalidades do sistema.
 
 ## 🎯 Fluxo de Trabalho Recomendado
 

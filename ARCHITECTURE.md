@@ -1,8 +1,8 @@
-# 🏗️ Arquitetura do Sistema Urânia
+# 🏗️ Arquitetura do Sistema No Cry Baby
 
 ## Visão Geral
 
-O Sistema Urânia segue uma arquitetura moderna de aplicação web com separação clara entre frontend e backend, comunicação via API REST e uso de algoritmos avançados de otimização.
+O Sistema No Cry Baby segue uma arquitetura moderna de aplicação web com separação clara entre frontend e backend, comunicação via API REST e uso de algoritmos avançados de otimização.
 
 ## 📐 Arquitetura de Alto Nível
 
@@ -398,7 +398,6 @@ GET /api/v1/horarios/{id}/professor/{professor_id}
 - OR-Tools: https://developers.google.com/optimization
 
 ### Inspiração
-- Sistema Urânia: https://horario.com.br/
 - FET Timetabling Software
 - Academic papers on educational timetabling
 
