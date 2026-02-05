@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # Banco de Dados PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: urania_db
+    environment:
+      POSTGRES_USER: urania_user
+      POSTGRES_PASSWORD: urania_pass
+      POSTGRES_DB: urania_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - urania_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U urania_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend FastAPI
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: urania_backend
+    environment:
+      DATABASE_URL: postgresql://urania_user:urania_pass@db:5432/urania_db
+      SECRET_KEY: sua-chave-secreta-mude-em-producao
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    networks:
+      - urania_network
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Frontend Next.js
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: urania_frontend
+    environment:
+      API_URL: http://backend:8000/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - urania_network
+    command: npm run dev
+
+volumes:
+  postgres_data:
+
+networks:
+  urania_network:
+    driver: bridge

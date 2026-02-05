@@ -180,6 +180,14 @@ export const disponibilidadeService = {
   delete: (id: number) => api.delete(`/disponibilidades/${id}`),
 };
 
+// Tipo para criação de horário (status é opcional)
+export interface HorarioCreate {
+  nome: string;
+  ano_letivo: number;
+  semestre: number;
+  status?: 'RASCUNHO' | 'EM_PROGRESSO' | 'FINALIZADO' | 'APROVADO';
+}
+
 export const horarioService = {
   getAll: () => api.get<Horario[]>('/horarios'),
   getById: (id: number) => api.get<Horario>(`/horarios/${id}`),
@@ -188,7 +196,7 @@ export const horarioService = {
     api.get<HorarioAula[]>(`/horarios/${horarioId}/turma/${turmaId}`),
   getAulasByProfessor: (horarioId: number, professorId: number) => 
     api.get<HorarioAula[]>(`/horarios/${horarioId}/professor/${professorId}`),
-  create: (data: Omit<Horario, 'id' | 'data_criacao' | 'data_atualizacao' | 'total_aulas' | 'aulas_alocadas' | 'pendencias' | 'qualidade_score'>) => 
+  create: (data: HorarioCreate) => 
     api.post<Horario>('/horarios', data),
   update: (id: number, data: Partial<Horario>) => api.put<Horario>(`/horarios/${id}`, data),
   delete: (id: number) => api.delete(`/horarios/${id}`),

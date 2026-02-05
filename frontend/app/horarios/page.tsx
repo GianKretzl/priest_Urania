@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { FaPlus, FaEye, FaPlay, FaTrash, FaClock, FaCheckCircle } from 'react-icons/fa';
-import { horarioService, Horario } from '@/lib/api';
+import { horarioService, Horario, HorarioCreate } from '@/lib/api';
 
 export default function HorariosPage() {
   const [horarios, setHorarios] = useState<Horario[]>([]);
   const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<HorarioCreate>({
     nome: '',
     ano_letivo: new Date().getFullYear(),
     semestre: 1,
