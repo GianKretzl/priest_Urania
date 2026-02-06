@@ -1,6 +1,16 @@
 import axios from 'axios';
 
-const API_URL = process.env.API_URL || 'http://localhost:8000/api/v1';
+// Usar proxy interno do Next.js para evitar problemas de CORS e portas
+const getApiUrl = () => {
+  // Se estiver no browser, usa o proxy do Next.js
+  if (typeof window !== 'undefined') {
+    return '/api/proxy';
+  }
+  // Server-side: acessa o backend diretamente via rede Docker
+  return 'http://backend:8000/api/v1';
+};
+
+const API_URL = getApiUrl();
 
 const api = axios.create({
   baseURL: API_URL,

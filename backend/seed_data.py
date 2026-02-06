@@ -182,16 +182,22 @@ def criar_disciplinas(db: Session):
     ])
     
     disciplinas = {}
+    contador_codigo = 1
     for nome in sorted(disciplinas_nomes):
+        # Gerar código único usando hash ou contador
+        codigo_base = nome[:15].upper().replace(" ", "_").replace("ÃO", "AO").replace("Á", "A").replace("Ô", "O")
+        codigo = f"{codigo_base}_{contador_codigo}"
+        
         disciplina = Disciplina(
             nome=nome,
-            codigo=nome[:10].upper().replace(" ", "_"),
-            descricao=f"Disciplina de {nome}",
+            codigo=codigo,
+            carga_horaria_semanal=2,  # Valor padrão, será sobrescrito pelas grades
             cor="#" + format(hash(nome) % 0xFFFFFF, '06x'),
             ativa=True
         )
         db.add(disciplina)
         disciplinas[nome] = disciplina
+        contador_codigo += 1
     
     db.commit()
     
@@ -207,27 +213,26 @@ def criar_turmas(db: Session):
     print("\n🎓 Criando turmas...")
     
     turmas_data = [
-        ("9º Ano A", "9A", 2025, "MATUTINO"),
-        ("9º Ano B", "9B", 2025, "MATUTINO"),
-        ("9º Ano C", "9C", 2025, "MATUTINO"),
-        ("9º Ano D", "9D", 2025, "MATUTINO"),
-        ("1º Ano A - Administração", "1A", 2025, "MATUTINO"),
-        ("1º Ano B - Administração", "1B", 2025, "MATUTINO"),
-        ("1º Ano C - Normal", "1C", 2025, "MATUTINO"),
-        ("2º Ano A", "2A", 2025, "MATUTINO"),
-        ("2º Ano B", "2B", 2025, "MATUTINO"),
-        ("3º Ano A", "3A", 2025, "MATUTINO"),
-        ("3º Ano B", "3B", 2025, "MATUTINO"),
+        ("9º Ano A", "9A", "9º Ano", "MATUTINO"),
+        ("9º Ano B", "9B", "9º Ano", "MATUTINO"),
+        ("9º Ano C", "9C", "9º Ano", "MATUTINO"),
+        ("9º Ano D", "9D", "9º Ano", "MATUTINO"),
+        ("1º Ano A - Administração", "1A", "1º Ano", "MATUTINO"),
+        ("1º Ano B - Eletromecânica", "1B", "1º Ano", "MATUTINO"),
+        ("1º Ano C - Normal", "1C", "1º Ano", "MATUTINO"),
+        ("2º Ano A", "2A", "2º Ano", "MATUTINO"),
+        ("2º Ano B", "2B", "2º Ano", "MATUTINO"),
+        ("3º Ano A", "3A", "3º Ano", "MATUTINO"),
+        ("3º Ano B", "3B", "3º Ano", "MATUTINO"),
     ]
     
     turmas = {}
-    for nome, codigo, ano, turno in turmas_data:
+    for nome, codigo, ano_serie, turno in turmas_data:
         turma = Turma(
             nome=nome,
-            codigo=codigo,
-            ano_letivo=ano,
+            ano_serie=ano_serie,
             turno=TurnoEnum[turno],
-            capacidade_alunos=35,
+            numero_alunos=35,
             ativa=True
         )
         db.add(turma)
@@ -455,8 +460,7 @@ def criar_horario_exemplo(db: Session):
         nome="Horário 2025 - 1º Semestre",
         ano_letivo=2025,
         semestre=1,
-        status="PENDENTE",
-        descricao="Horário do primeiro semestre de 2025",
+        status="RASCUNHO",
         total_aulas=0,
         aulas_alocadas=0,
         qualidade_score=0
