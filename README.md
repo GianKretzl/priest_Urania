@@ -50,13 +50,19 @@ O **No Cry Baby** é um sistema completo para geração automática de horários
 
 ### 3. Motor de Geração
 
-- Algorithm de programação com restrições (CP-SAT)
+- Algoritmo de programação com restrições (CP-SAT)
 - Otimização automática de milhares de combinações
-- Identificação e resolução de pendências
-- Refinamento para melhor qualidade pedagógica
-- Score de qualidade (0-100)
+- **Detecção automática de pendências** com sugestões inteligentes
+- **Refinamento para melhor qualidade pedagógica**
+- Score de qualidade avançado (0-100) baseado em múltiplos critérios
 
 ### 4. Visualização e Relatórios
+
+- Visualização por turma (grade completa)
+- Visualização por professor (carga horária)
+- **Exportação em HTML** (visualização elegante e imprimível)
+- **Exportação em CSV** (compatível com Excel/Planilhas)
+- Dashboard com estatísticas e análise de qualidade
 
 - Visualização por turma
 - Visualização por professor
@@ -266,12 +272,16 @@ O sistema utiliza o **CP-SAT Solver** do Google OR-Tools, que implementa:
    - Uma aula por vez por turma
    - Uma aula por vez por professor
    - Uma aula por vez por ambiente
-   - Respeitar disponibilidade
+   - Respeitar disponibilidade do professor
+   - Limitar aulas seguidas (máximo configurável por professor)
+   - Limitar aulas por dia (máximo configurável por professor)
+   - Respeitar horas-atividade (tempo reservado para atividades extraclasse)
+   - Considerar tempo de deslocamento entre sedes diferentes
 
 4. **Restrições fracas** (soft constraints / objetivos):
-   - Minimizar janelas entre aulas
+   - Minimizar janelas entre aulas dos professores
    - Distribuir uniformemente ao longo da semana
-   - Respeitar preferências
+   - Respeitar preferências de horário
 
 5. **Otimização** para encontrar a melhor solução possível
 

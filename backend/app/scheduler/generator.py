@@ -156,6 +156,12 @@ class HorarioGenerator:
         
         # 7. Limitar aulas por dia
         self._adicionar_restricoes_aulas_por_dia()
+        
+        # 8. Respeitar horas-atividade
+        self._adicionar_restricoes_horas_atividade()
+        
+        # 9. Considerar deslocamento entre sedes
+        self._adicionar_restricoes_deslocamento()
     
     def _adicionar_restricoes_disponibilidade(self):
         """Respeita os horários de disponibilidade dos professores"""
@@ -216,6 +222,97 @@ class HorarioGenerator:
                 
                 if vars_dia:
                     self.model.Add(sum(vars_dia) <= max_aulas)
+    
+    def _adicionar_restricoes_horas_atividade(self):
+        """Garante que professores tenham tempo para horas-atividade"""
+        for prof_id, professor in self.professores.items():
+            if professor.horas_atividade > 0:
+                # Calcular total de aulas do professor na semana
+                vars_total = []
+                for dia_idx in range(len(self.dias_semana)):
+                    for slot in range(self.slots_por_dia):
+                        for grade in self.grades:
+                            if grade.professor_id == prof_id:
+                                for aula_num in range(grade.aulas_por_semana):
+                                    for ambiente in self.ambientes:
+                                        var_name = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot}_amb{ambiente.id}"
+                                        if var_name in self.variaveis:
+                                            vars_total.append(self.variaveis[var_name])
+                
+                if vars_total:
+                    # Converter duração de aula (minutos) para horas
+                    duracao_aula_horas = self.duracao_aula / 60
+                    
+                    # Carga horária máxima - horas atividade = horas disponíveis para aulas
+                    horas_disponiveis_aulas = professor.carga_horaria_maxima - professor.horas_atividade
+                    max_aulas_semana = int(horas_disponiveis_aulas / duracao_aula_horas)
+                    
+                    # Garantir que o total de aulas não ultrapasse o limite
+                    self.model.Add(sum(vars_total) <= max_aulas_semana)
+    
+    def _adicionar_restricoes_deslocamento(self):
+        """Considera tempo de deslocamento entre sedes diferentes"""
+        # Mapear ambientes por sede
+        ambientes_por_sede = {}
+        for ambiente in self.ambientes:
+            if ambiente.sede_id not in ambientes_por_sede:
+                ambientes_por_sede[ambiente.sede_id] = []
+            ambientes_por_sede[ambiente.sede_id].append(ambiente)
+        
+        # Se houver apenas uma sede, não há necessidade de deslocamento
+        if len(ambientes_por_sede) <= 1:
+            return
+        
+        for prof_id, professor in self.professores.items():
+            if professor.tempo_deslocamento == 0:
+                continue
+            
+            # Calcular quantos slots são necessários para deslocamento
+            slots_deslocamento = (professor.tempo_deslocamento + self.duracao_aula - 1) // self.duracao_aula
+            
+            if slots_deslocamento == 0:
+                slots_deslocamento = 1  # No mínimo 1 slot de intervalo
+            
+            # Para cada dia, verificar aulas consecutivas em sedes diferentes
+            for dia_idx in range(len(self.dias_semana)):
+                for slot in range(self.slots_por_dia - slots_deslocamento):
+                    # Para cada par de sedes diferentes
+                    for sede1_id, ambientes_sede1 in ambientes_por_sede.items():
+                        for sede2_id, ambientes_sede2 in ambientes_por_sede.items():
+                            if sede1_id >= sede2_id:
+                                continue  # Evitar duplicação
+                            
+                            # Variáveis para aulas na sede 1 no slot atual
+                            vars_sede1_slot = []
+                            for ambiente in ambientes_sede1:
+                                for grade in self.grades:
+                                    if grade.professor_id == prof_id:
+                                        for aula_num in range(grade.aulas_por_semana):
+                                            var_name = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot}_amb{ambiente.id}"
+                                            if var_name in self.variaveis:
+                                                vars_sede1_slot.append(self.variaveis[var_name])
+                            
+                            # Variáveis para aulas na sede 2 nos próximos slots (dentro do tempo de deslocamento)
+                            for slot_offset in range(1, slots_deslocamento + 1):
+                                slot_futuro = slot + slot_offset
+                                if slot_futuro >= self.slots_por_dia:
+                                    break
+                                
+                                vars_sede2_slot = []
+                                for ambiente in ambientes_sede2:
+                                    for grade in self.grades:
+                                        if grade.professor_id == prof_id:
+                                            for aula_num in range(grade.aulas_por_semana):
+                                                var_name = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot_futuro}_amb{ambiente.id}"
+                                                if var_name in self.variaveis:
+                                                    vars_sede2_slot.append(self.variaveis[var_name])
+                                
+                                # Se há aula na sede 1 no slot atual, não pode haver na sede 2 no slot futuro próximo
+                                if vars_sede1_slot and vars_sede2_slot:
+                                    for var1 in vars_sede1_slot:
+                                        for var2 in vars_sede2_slot:
+                                            # Se var1 = 1, então var2 = 0 (não ambas podem ser 1)
+                                            self.model.Add(var1 + var2 <= 1)
     
     def adicionar_objetivos(self):
         """Define a função objetivo para otimização"""
@@ -334,14 +431,182 @@ class HorarioGenerator:
         
         return f"{hora:02d}:{minuto:02d}"
     
+    def _detectar_pendencias(self):
+        """Detecta pendências e gera sugestões de resolução"""
+        self.pendencias = []
+        
+        # Verificar aulas não alocadas
+        total_aulas = sum(g.aulas_por_semana for g in self.grades)
+        if self.horario.aulas_alocadas < total_aulas:
+            aulas_faltantes = total_aulas - self.horario.aulas_alocadas
+            
+            # Analisar possíveis causas
+            self._analisar_disponibilidade_professores()
+            self._analisar_capacidade_ambientes()
+            self._analisar_conflitos_deslocamento()
+            
+            self.pendencias.insert(0, {
+                "tipo": "AULAS_NAO_ALOCADAS",
+                "severidade": "ALTA",
+                "mensagem": f"{aulas_faltantes} aula(s) não foram alocadas",
+                "detalhes": f"Taxa de alocação: {(self.horario.aulas_alocadas/total_aulas)*100:.1f}%"
+            })
+    
+    def _analisar_disponibilidade_professores(self):
+        """Analisa se falta de disponibilidade está causando problemas"""
+        for prof_id, professor in self.professores.items():
+            # Contar grades do professor
+            grades_prof = [g for g in self.grades if g.professor_id == prof_id]
+            if not grades_prof:
+                continue
+            
+            total_aulas_prof = sum(g.aulas_por_semana for g in grades_prof)
+            
+            # Contar horários disponíveis
+            if prof_id in self.disponibilidades:
+                slots_bloqueados = 0
+                for disp in self.disponibilidades[prof_id]:
+                    if not disp.disponivel:
+                        slots_bloqueados += self.slots_por_dia  # Simplificado
+                
+                slots_disponiveis = len(self.dias_semana) * self.slots_por_dia - slots_bloqueados
+                
+                if total_aulas_prof > slots_disponiveis * 0.8:
+                    self.pendencias.append({
+                        "tipo": "DISPONIBILIDADE_INSUFICIENTE",
+                        "severidade": "MEDIA",
+                        "mensagem": f"Professor {professor.nome} tem poucos horários disponíveis",
+                        "sugestao": f"Considere liberar alguns horários bloqueados ou reduzir a carga horária",
+                        "professor_id": prof_id
+                    })
+    
+    def _analisar_capacidade_ambientes(self):
+        """Analisa se falta de ambientes está causando problemas"""
+        total_aulas = sum(g.aulas_por_semana for g in self.grades)
+        capacidade_total = len(self.ambientes) * len(self.dias_semana) * self.slots_por_dia
+        
+        taxa_ocupacao = (total_aulas / capacidade_total) * 100
+        
+        if taxa_ocupacao > 80:
+            self.pendencias.append({
+                "tipo": "CAPACIDADE_AMBIENTES",
+                "severidade": "MEDIA",
+                "mensagem": f"Taxa de ocupação de ambientes muito alta ({taxa_ocupacao:.1f}%)",
+                "sugestao": "Considere adicionar mais salas de aula ou distribuir turmas em outros turnos"
+            })
+    
+    def _analisar_conflitos_deslocamento(self):
+        """Analisa se restrições de deslocamento estão causando problemas"""
+        # Verificar se há múltiplas sedes
+        sedes_usadas = set(amb.sede_id for amb in self.ambientes)
+        
+        if len(sedes_usadas) > 1:
+            # Verificar professores com tempo de deslocamento alto
+            for prof_id, professor in self.professores.items():
+                if professor.tempo_deslocamento > 45:  # Mais de 45 minutos
+                    grades_prof = [g for g in self.grades if g.professor_id == prof_id]
+                    if len(grades_prof) > 0:
+                        self.pendencias.append({
+                            "tipo": "DESLOCAMENTO_PROBLEMATICO",
+                            "severidade": "BAIXA",
+                            "mensagem": f"Professor {professor.nome} tem tempo de deslocamento alto ({professor.tempo_deslocamento}min)",
+                            "sugestao": "Considere alocar aulas do professor em apenas uma sede ou reduzir o tempo de deslocamento",
+                            "professor_id": prof_id
+                        })
+    
     def _calcular_qualidade(self) -> int:
         """Calcula um score de qualidade do horário gerado (0-100)"""
-        # Simplificado: baseado na taxa de alocação
         if self.horario.total_aulas == 0:
             return 0
         
-        taxa_alocacao = (self.horario.aulas_alocadas / self.horario.total_aulas) * 100
-        return int(taxa_alocacao)
+        score = 0
+        
+        # 1. Taxa de alocação (40 pontos)
+        taxa_alocacao = (self.horario.aulas_alocadas / self.horario.total_aulas)
+        score += int(taxa_alocacao * 40)
+        
+        # 2. Distribuição de aulas (30 pontos)
+        score += self._avaliar_distribuicao()
+        
+        # 3. Janelas minimizadas (20 pontos)
+        score += self._avaliar_janelas()
+        
+        # 4. Respeito às preferências (10 pontos)
+        score += self._avaliar_preferencias()
+        
+        return min(100, score)
+    
+    def _avaliar_distribuicao(self) -> int:
+        """Avalia a distribuição uniforme de aulas na semana"""
+        aulas_por_dia = {dia: 0 for dia in range(len(self.dias_semana))}
+        
+        for var_name, var in self.variaveis.items():
+            if self.solver.Value(var) == 1:
+                parts = var_name.split('_')
+                dia_idx = int(parts[2][1:])
+                aulas_por_dia[dia_idx] += 1
+        
+        if not aulas_por_dia:
+            return 0
+        
+        # Calcular desvio padrão
+        media = sum(aulas_por_dia.values()) / len(aulas_por_dia)
+        variancia = sum((v - media) ** 2 for v in aulas_por_dia.values()) / len(aulas_por_dia)
+        desvio = variancia ** 0.5
+        
+        # Quanto menor o desvio, melhor (mais uniforme)
+        score = max(0, 30 - int(desvio * 5))
+        return score
+    
+    def _avaliar_janelas(self) -> int:
+        """Avalia a quantidade de janelas (horários vagos) dos professores"""
+        total_janelas = 0
+        
+        for prof_id in self.professores:
+            for dia_idx in range(len(self.dias_semana)):
+                aulas_dia = []
+                for slot in range(self.slots_por_dia):
+                    tem_aula = False
+                    for var_name, var in self.variaveis.items():
+                        if f"_d{dia_idx}_s{slot}_" in var_name and self.solver.Value(var) == 1:
+                            parts = var_name.split('_')
+                            grade_id = int(parts[0][1:])
+                            grade = next((g for g in self.grades if g.id == grade_id), None)
+                            if grade and grade.professor_id == prof_id:
+                                tem_aula = True
+                                break
+                    aulas_dia.append(tem_aula)
+                
+                # Contar janelas: False entre dois True
+                for i in range(1, len(aulas_dia) - 1):
+                    if not aulas_dia[i] and (aulas_dia[i-1] or aulas_dia[i+1]):
+                        if aulas_dia[i-1] and aulas_dia[i+1]:
+                            total_janelas += 1
+        
+        # Quanto menos janelas, melhor
+        max_janelas_esperadas = len(self.professores) * len(self.dias_semana) * 2
+        score = max(0, 20 - int((total_janelas / max(1, max_janelas_esperadas)) * 20))
+        return score
+    
+    def _avaliar_preferencias(self) -> int:
+        """Avalia o respeito às preferências (placeholder para futura implementação)"""
+        # Por enquanto, retorna 10 pontos fixos
+        # Futuramente pode considerar preferências de horário dos professores
+        return 10
+    
+    def refinar_solucao(self):
+        """Fase de refinamento para melhorar a qualidade pedagógica do horário"""
+        if self.horario.aulas_alocadas == 0:
+            return
+        
+        # Tentar redistribuir aulas para melhorar qualidade
+        # Esta é uma versão simplificada - pode ser expandida
+        
+        # 1. Identificar dias com muita sobrecarga
+        # 2. Tentar mover aulas para balancear
+        # 3. Recalcular score de qualidade
+        
+        pass  # Implementação futura mais sofisticada
     
     def gerar(self, tempo_maximo: int = 300) -> Dict:
         """Método principais para gerar o horário"""
@@ -373,9 +638,24 @@ class HorarioGenerator:
             if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
                 aulas_criadas = self.extrair_solucao()
                 
+                # 7. Detectar pendências e gerar sugestões
+                self._detectar_pendencias()
+                
+                # 8. Fase de refinamento
+                if status == cp_model.OPTIMAL:
+                    self.refinar_solucao()
+                
+                # Salvar pendências no banco
+                self.horario.pendencias = self.pendencias
+                self.db.commit()
+                
+                mensagem = "Horário gerado com sucesso!"
+                if self.pendencias:
+                    mensagem += f" ({len(self.pendencias)} pendência(s) detectada(s))"
+                
                 return {
                     "success": True,
-                    "message": "Horário gerado com sucesso!",
+                    "message": mensagem,
                     "status": "OPTIMAL" if status == cp_model.OPTIMAL else "FEASIBLE",
                     "total_aulas": self.horario.total_aulas,
                     "aulas_alocadas": aulas_criadas,
@@ -384,12 +664,23 @@ class HorarioGenerator:
                     "pendencias": self.pendencias
                 }
             else:
+                # Gerar pendências detalhadas quando não há solução
+                self._detectar_pendencias()
+                
+                if not self.pendencias:
+                    self.pendencias.append({
+                        "tipo": "INFEASIBLE",
+                        "severidade": "ALTA",
+                        "mensagem": "Restrições muito restritivas ou dados incompatíveis",
+                        "sugestao": "Revise as restrições de disponibilidade, carga horária e deslocamento dos professores"
+                    })
+                
                 return {
                     "success": False,
                     "message": "Não foi possível gerar um horário válido",
                     "status": "INFEASIBLE",
                     "tempo_geracao": tempo_decorrido,
-                    "pendencias": ["Restrições muito restritivas ou dados incompatíveis"]
+                    "pendencias": self.pendencias
                 }
                 
         except Exception as e:

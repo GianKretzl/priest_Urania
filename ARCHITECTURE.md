@@ -166,11 +166,38 @@ x[grade][aula][dia][horario][ambiente] ∈ {0, 1}
    ∀ grade, aula: ∑ alocacoes[grade][aula] = 1
    ```
 
-5. **Respeitar disponibilidade**:
+5. **Respeitar disponibilidade do professor**:
    ```
    Se professor indisponível em (dia, horario):
        aulas_professor[prof][dia][horario] = 0
    ```
+
+6. **Limitar aulas seguidas por professor**:
+   ```
+   ∀ professor, dia, janela_temporal:
+       ∑ aulas_consecutivas[prof] ≤ max_aulas_seguidas
+   ```
+
+7. **Limitar aulas por dia**:
+   ```
+   ∀ professor, dia:
+       ∑ aulas[prof][dia] ≤ max_aulas_dia
+   ```
+
+8. **Respeitar horas-atividade**:
+   ```
+   ∀ professor:
+       total_aulas_semana ≤ (carga_horaria_maxima - horas_atividade) / duracao_aula
+   ```
+   *Garante que professores tenham tempo reservado para atividades extraclasse*
+
+9. **Considerar deslocamento entre sedes**:
+   ```
+   ∀ professor, dia:
+       Se aula[slot_n] em sede_A e aula[slot_n+k] em sede_B:
+           k ≥ ceil(tempo_deslocamento / duracao_aula)
+   ```
+   *Evita que professores tenham aulas em sedes diferentes sem tempo suficiente para deslocamento*
 
 #### Restrições Fracas (Soft Constraints / Objetivos)
 
