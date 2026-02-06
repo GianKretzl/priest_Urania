@@ -151,17 +151,12 @@ class HorarioGenerator:
         # 5. Respeitar disponibilidade dos professores
         self._adicionar_restricoes_disponibilidade()
         
-        # 6. Limitar aulas seguidas por professor
-        self._adicionar_restricoes_aulas_seguidas()
-        
-        # 7. Limitar aulas por dia
-        self._adicionar_restricoes_aulas_por_dia()
-        
-        # 8. Respeitar horas-atividade
-        self._adicionar_restricoes_horas_atividade()
-        
-        # 9. Considerar deslocamento entre sedes
-        self._adicionar_restricoes_deslocamento()
+        # 6-9: Restrições de qualidade temporariamente desabilitadas para debugging
+        # TODO: Reativar após garantir que o modelo básico funciona
+        # self._adicionar_restricoes_aulas_seguidas()
+        # self._adicionar_restricoes_aulas_por_dia()
+        # self._adicionar_restricoes_horas_atividade()
+        # self._adicionar_restricoes_deslocamento()
     
     def _adicionar_restricoes_disponibilidade(self):
         """Respeita os horários de disponibilidade dos professores"""
@@ -667,6 +662,9 @@ class HorarioGenerator:
                 # Gerar pendências detalhadas quando não há solução
                 self._detectar_pendencias()
                 
+                # Calcular totais mesmo em caso de falha
+                total_aulas = sum(g.aulas_por_semana for g in self.grades)
+                
                 if not self.pendencias:
                     self.pendencias.append({
                         "tipo": "INFEASIBLE",
@@ -679,6 +677,9 @@ class HorarioGenerator:
                     "success": False,
                     "message": "Não foi possível gerar um horário válido",
                     "status": "INFEASIBLE",
+                    "total_aulas": total_aulas,
+                    "aulas_alocadas": 0,
+                    "qualidade_score": 0,
                     "tempo_geracao": tempo_decorrido,
                     "pendencias": self.pendencias
                 }

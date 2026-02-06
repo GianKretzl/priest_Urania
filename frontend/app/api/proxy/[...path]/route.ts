@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Configuração de runtime para permitir mais tempo de execução
+export const maxDuration = 300; // 5 minutos
+export const dynamic = 'force-dynamic';
+
 // Proxy para o backend
 export async function GET(request: NextRequest) {
   const path = request.nextUrl.pathname.replace('/api/proxy', '');
@@ -28,18 +32,28 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
 
   try {
+    // Timeout maior para operações de geração de horário
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 290000); // 290 segundos (deixa margem para o maxDuration)
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Proxy error:', error);
+    if (error.name === 'AbortError') {
+      return NextResponse.json({ error: 'Request timeout - operação demorou muito tempo' }, { status: 504 });
+    }
     return NextResponse.json({ error: 'Failed to post data' }, { status: 500 });
   }
 }

@@ -1,132 +1,65 @@
-"""
-Script para popular o banco de dados com dados reais da escola
-Execute: python seed_data.py
-"""
-
-from sqlalchemy.orm import Session
 from app.core.database import SessionLocal, engine, Base
-from app.models.disciplina import Disciplina
-from app.models.turma import Turma, TurnoEnum
-from app.models.professor import Professor
-from app.models.grade_curricular import GradeCurricular
-from app.models.sede import Sede
-from app.models.ambiente import Ambiente, TipoAmbienteEnum
-from app.models.horario import Horario
+from app.models import (
+    Disciplina, Turma, Professor, Sede, Ambiente, GradeCurricular, Horario
+)
 
-# Criar todas as tabelas
-Base.metadata.create_all(bind=engine)
-
-def limpar_dados(db: Session):
+def limpar_dados(db):
     """Limpa todos os dados existentes"""
-    print("🗑️  Limpando dados existentes...")
     db.query(GradeCurricular).delete()
     db.query(Horario).delete()
     db.query(Ambiente).delete()
     db.query(Sede).delete()
     db.query(Turma).delete()
-    db.query(Disciplina).delete()
     db.query(Professor).delete()
+    db.query(Disciplina).delete()
     db.commit()
-    print("✅ Dados limpos!")
 
-def criar_sede_e_ambientes(db: Session):
-    """Cria a sede e ambientes (salas de aula)"""
-    print("\n🏫 Criando sede e ambientes...")
-    
+def criar_sede_ambientes(db):
+    """Cria sede e ambientes"""
     sede = Sede(
-        nome="Sede Principal",
+        nome="Colégio Estadual Princesa Isabel",
         endereco="Rua Principal, 123",
         cidade="Curitiba",
         estado="PR",
-        cep="80000-000",
-        ativa=True
+        cep="80000-000"
     )
     db.add(sede)
     db.commit()
     db.refresh(sede)
     
-    # Criar 15 salas de aula
-    for i in range(1, 16):
+    # Criar ambientes (salas)
+    for i in range(1, 21):
         ambiente = Ambiente(
             nome=f"Sala {i}",
-            codigo=f"S{i:02d}",
-            tipo=TipoAmbienteEnum.SALA_AULA,
-            capacidade=35,
-            sede_id=sede.id,
-            ativo=True
-        )
-        db.add(ambiente)
-    
-    # Criar ambientes especiais
-    ambientes_especiais = [
-        ("Laboratório de Informática", "LAB-INF", TipoAmbienteEnum.SALA_INFORMATICA),
-        ("Laboratório de Química", "LAB-QUI", TipoAmbienteEnum.LABORATORIO),
-        ("Laboratório de Física", "LAB-FIS", TipoAmbienteEnum.LABORATORIO),
-        ("Quadra Poliesportiva", "QUADRA", TipoAmbienteEnum.QUADRA),
-        ("Auditório", "AUD", TipoAmbienteEnum.AUDITORIO),
-    ]
-    
-    for nome, codigo, tipo in ambientes_especiais:
-        ambiente = Ambiente(
-            nome=nome,
-            codigo=codigo,
-            tipo=tipo,
+            codigo=f"S{str(i).zfill(2)}",
+            tipo="SALA_AULA",
             capacidade=40,
-            sede_id=sede.id,
-            ativo=True
+            sede_id=sede.id
         )
         db.add(ambiente)
-    
     db.commit()
-    print(f"✅ Criada 1 sede com {15 + len(ambientes_especiais)} ambientes!")
     return sede
 
-def criar_professores(db: Session):
-    """Cria os professores"""
-    print("\n👨‍🏫 Criando professores...")
+def criar_professores(db):
+    """Cria todos os professores com suas disciplinas"""
     
+    # Lista de professores com nome e máximo de aulas (será calculado)
     professores_data = [
-        ("Alvaro", "alvaro@escola.com", "41999000001"),
-        ("Aline", "aline@escola.com", "41999000002"),
-        ("Aline V", "alinev@escola.com", "41999000003"),
-        ("Andreia", "andreia@escola.com", "41999000004"),
-        ("Andreza", "andreza@escola.com", "41999000005"),
-        ("Carolina", "carolina@escola.com", "41999000006"),
-        ("Cristiano", "cristiano@escola.com", "41999000007"),
-        ("Diomar", "diomar@escola.com", "41999000008"),
-        ("Edelvan", "edelvan@escola.com", "41999000009"),
-        ("Fernanda", "fernanda@escola.com", "41999000010"),
-        ("Gessinger", "gessinger@escola.com", "41999000011"),
-        ("Gian", "gian@escola.com", "41999000012"),
-        ("Giovani", "giovani@escola.com", "41999000013"),
-        ("Helmut", "helmut@escola.com", "41999000014"),
-        ("Lucas", "lucas@escola.com", "41999000015"),
-        ("Lucia", "lucia@escola.com", "41999000016"),
-        ("Márcia Regina", "marciaregina@escola.com", "41999000017"),
-        ("Marly", "marly@escola.com", "41999000018"),
-        ("Matheus", "matheus@escola.com", "41999000019"),
-        ("Mayhara", "mayhara@escola.com", "41999000020"),
-        ("Mirele", "mirele@escola.com", "41999000021"),
-        ("Nadia", "nadia@escola.com", "41999000022"),
-        ("Paola", "paola@escola.com", "41999000023"),
-        ("Rafaela", "rafaela@escola.com", "41999000024"),
-        ("Renata", "renata@escola.com", "41999000025"),
-        ("Rodrigo", "rodrigo@escola.com", "41999000026"),
-        ("Rosane", "rosane@escola.com", "41999000027"),
-        ("Rosani", "rosani@escola.com", "41999000028"),
-        ("Sandro", "sandro@escola.com", "41999000029"),
-        ("SENAI", "senai@escola.com", "41999000030"),
+        "Alvaro", "Aline", "Aline V", "Andreia", "Andreza", "Carolina",
+        "Cristiano", "Diomar", "Edelvan", "Fernanda", "Gessinger", "Gian",
+        "Giovani", "Helmut", "Lucas", "Lucia", "Márcia Regina", "Marly",
+        "Matheus", "Mayhara", "Mirele", "Nadia", "Paola", "Rafaela",
+        "Renata", "Rodrigo", "Rosane", "Rosani", "Sandro", "SENAI"
     ]
     
     professores = {}
-    for nome, email, telefone in professores_data:
-        cpf = f"000.000.000-{len(professores)+1:02d}"
+    for idx, nome in enumerate(professores_data, 1):
         professor = Professor(
             nome=nome,
-            email=email,
-            telefone=telefone,
-            cpf=cpf,
-            carga_horaria_maxima=40,
+            email=f"{nome.lower().replace(' ', '')}@escola.com",
+            telefone=f"41999{str(idx).zfill(6)}",
+            cpf=f"000.000.000-{str(idx).zfill(2)}",
+            carga_horaria_maxima=40,  # Será atualizado depois
             horas_atividade=8,
             max_aulas_seguidas=4,
             max_aulas_dia=8,
@@ -137,383 +70,340 @@ def criar_professores(db: Session):
         professores[nome] = professor
     
     db.commit()
+    for nome in professores:
+        db.refresh(professores[nome])
     
-    # Refresh para obter IDs
-    for prof in professores.values():
-        db.refresh(prof)
-    
-    print(f"✅ Criados {len(professores)} professores!")
     return professores
 
-def criar_disciplinas(db: Session):
-    """Cria as disciplinas"""
-    print("\n📚 Criando disciplinas...")
+def criar_disciplinas(db):
+    """Cria todas as disciplinas únicas"""
     
-    disciplinas_nomes = set([
-        "Arte", "Arte II", "Arte Paranaense",
-        "Biologia", "Biologia II",
-        "Ciências",
-        "Cidadania e Civismo",
-        "Educação Financeira",
-        "Educação Física",
-        "Estratégias de MkT",
-        "Finanças Empresariais",
-        "Filosofia", "Filosofia Análise de Textos Filos",
-        "Física", "Física II", "Física III", "Física e Tecnologia",
-        "Geografia", "Geografia I", "Geografia do Paraná",
-        "História", "História I", "História do Paraná",
-        "Informática Empresarial",
-        "Língua Inglesa", "Língua Inglesa I",
-        "Língua Portuguesa",
-        "Literatura e Prod de texto",
-        "Matemática", "Matemática II",
-        "Princípios de Administração",
-        "Princípios Econômicos",
-        "Programação", "Programação e Robótica", "Programação e IA",
-        "Projeto de vida",
-        "Química",
-        "Rec língua portuguesa",
-        "Rec matemática",
-        "Recursos Humanos",
-        "Robótica",
-        "SENAI",
-        "Sociologia", "Sociologia I", "Sociologia GOV CID Sociedade",
-        "Técnicas Integradas",
-    ])
+    disciplinas_nomes = [
+        # 9 anos
+        "Arte", "Ciências", "Educação Física", "Geografia", "História",
+        "Língua Inglesa", "Língua Portuguesa", "Matemática", 
+        "Cidadania e Civismo", "Educação Financeira", "Programação e Robótica",
+        "Rec. língua portuguesa", "Rec matemática",
+        
+        # 1º ano
+        "Biologia", "Química", "Programação e IA", "Estratégias de MkT",
+        "Finanças Empresariais", "Princípios de Administração", "Recursos Humanos",
+        "Técnicas Integradas", "Informática Empresarial", "Princípios Econômicos",
+        "SENAI", "Arte Paranaense", "História do Paraná", "Geografia do Paraná",
+        
+        # 2º ano
+        "Filosofia", "Sociologia", "Literatura e Prod de texto",
+        "Sociologia GOV CID Sociedade", "Filosofia Análise de Textos Filos",
+        "Programação", "Robótica", "Física e Tecnologia",
+        
+        # 3º ano
+        "Física", "Projeto de vida", "Arte II", "Geografia I", "História I",
+        "Língua Inglesa I", "Sociologia I", "Biologia II", "Física II",
+        "Física III", "Matemática II"
+    ]
+    
+    # Cores diferentes para as disciplinas
+    cores = [
+        "#EF4444", "#F97316", "#F59E0B", "#EAB308", "#84CC16", "#22C55E",
+        "#10B981", "#14B8A6", "#06B6D4", "#0EA5E9", "#3B82F6", "#6366F1",
+        "#8B5CF6", "#A855F7", "#D946EF", "#EC4899", "#F43F5E", "#FB923C",
+        "#FBBF24", "#A3E635", "#4ADE80", "#2DD4BF", "#22D3EE", "#38BDF8",
+        "#60A5FA", "#818CF8", "#A78BFA", "#C084FC", "#E879F9", "#F472B6",
+        "#FB7185", "#FCA5A5", "#FDBA74", "#FCD34D", "#BEF264", "#86EFAC",
+        "#5EEAD4", "#67E8F9", "#7DD3FC", "#93C5FD", "#A5B4FC", "#C4B5FD",
+        "#D8B4FE", "#F0ABFC", "#F9A8D4", "#FCA5A5"
+    ]
     
     disciplinas = {}
-    contador_codigo = 1
-    for nome in sorted(disciplinas_nomes):
-        # Gerar código único usando hash ou contador
-        codigo_base = nome[:15].upper().replace(" ", "_").replace("ÃO", "AO").replace("Á", "A").replace("Ô", "O")
-        codigo = f"{codigo_base}_{contador_codigo}"
-        
+    for idx, nome in enumerate(disciplinas_nomes):
         disciplina = Disciplina(
             nome=nome,
-            codigo=codigo,
-            carga_horaria_semanal=2,  # Valor padrão, será sobrescrito pelas grades
-            cor="#" + format(hash(nome) % 0xFFFFFF, '06x'),
+            carga_horaria_semanal=2,  # Padrão, será ajustado nas grades
+            duracao_aula=50,
+            cor=cores[idx % len(cores)],
             ativa=True
         )
         db.add(disciplina)
         disciplinas[nome] = disciplina
-        contador_codigo += 1
     
     db.commit()
+    for nome in disciplinas:
+        db.refresh(disciplinas[nome])
     
-    # Refresh para obter IDs
-    for disc in disciplinas.values():
-        db.refresh(disc)
-    
-    print(f"✅ Criadas {len(disciplinas)} disciplinas!")
     return disciplinas
 
-def criar_turmas(db: Session):
-    """Cria as turmas"""
-    print("\n🎓 Criando turmas...")
-    
+def criar_turmas(db):
+    """Cria todas as turmas"""
     turmas_data = [
-        ("9º Ano A", "9A", "9º Ano", "MATUTINO"),
-        ("9º Ano B", "9B", "9º Ano", "MATUTINO"),
-        ("9º Ano C", "9C", "9º Ano", "MATUTINO"),
-        ("9º Ano D", "9D", "9º Ano", "MATUTINO"),
-        ("1º Ano A - Administração", "1A", "1º Ano", "MATUTINO"),
-        ("1º Ano B - Eletromecânica", "1B", "1º Ano", "MATUTINO"),
-        ("1º Ano C - Normal", "1C", "1º Ano", "MATUTINO"),
-        ("2º Ano A", "2A", "2º Ano", "MATUTINO"),
-        ("2º Ano B", "2B", "2º Ano", "MATUTINO"),
-        ("3º Ano A", "3A", "3º Ano", "MATUTINO"),
-        ("3º Ano B", "3B", "3º Ano", "MATUTINO"),
+        ("9A", "9º Ano", "MATUTINO"),
+        ("9B", "9º Ano", "MATUTINO"),
+        ("9C", "9º Ano", "MATUTINO"),
+        ("9D", "9º Ano", "MATUTINO"),
+        ("1A", "1º Ano", "MATUTINO"),
+        ("1B", "1º Ano - Eletromecânica", "MATUTINO"),
+        ("1C", "1º Ano", "MATUTINO"),
+        ("2A", "2º Ano", "MATUTINO"),
+        ("2B", "2º Ano", "MATUTINO"),
+        ("3A", "3º Ano", "MATUTINO"),
+        ("3B", "3º Ano", "MATUTINO"),
     ]
     
     turmas = {}
-    for nome, codigo, ano_serie, turno in turmas_data:
+    for codigo, nome, turno in turmas_data:
         turma = Turma(
-            nome=nome,
-            ano_serie=ano_serie,
-            turno=TurnoEnum[turno],
-            numero_alunos=35,
+            nome=codigo,
+            ano_serie=nome,
+            turno=turno,
+            numero_alunos=30,
             ativa=True
         )
         db.add(turma)
         turmas[codigo] = turma
     
     db.commit()
+    for codigo in turmas:
+        db.refresh(turmas[codigo])
     
-    # Refresh para obter IDs
-    for turma in turmas.values():
-        db.refresh(turma)
-    
-    print(f"✅ Criadas {len(turmas)} turmas!")
     return turmas
 
-def criar_grades_curriculares(db: Session, turmas: dict, disciplinas: dict, professores: dict):
-    """Cria as grades curriculares (turma + disciplina + professor + aulas)"""
-    print("\n📋 Criando grades curriculares...")
+def criar_grades_curriculares(db, professores, disciplinas, turmas):
+    """Cria as grades curriculares e atribui professores às disciplinas"""
     
-    # Dados estruturados por turma
+    # Estrutura: turma -> [(disciplina, aulas, professor), ...]
     grades_data = {
+        # 9 anos (A, B, C, D) - mesma grade
         "9A": [
-            ("Arte", "Andreza", 2),
-            ("Ciências", "Andreia", 2),
-            ("Educação Física", "Giovani", 2),
-            ("Geografia", "Aline", 3),
-            ("História", "Rosani", 2),
-            ("Língua Inglesa", "Rafaela", 2),
-            ("Língua Portuguesa", "Renata", 3),
-            ("Matemática", "Nadia", 5),
-            ("Cidadania e Civismo", "Fernanda", 1),
-            ("Educação Financeira", "Diomar", 2),
-            ("Programação e Robótica", "Gian", 2),
-            ("Rec língua portuguesa", "Márcia Regina", 2),
-            ("Rec matemática", "Mayhara", 2),
-        ],
-        "9B": [
-            ("Arte", "Andreza", 2),
-            ("Ciências", "Andreia", 2),
-            ("Educação Física", "Giovani", 2),
-            ("Geografia", "Aline", 3),
-            ("História", "Rosani", 2),
-            ("Língua Inglesa", "Rafaela", 2),
-            ("Língua Portuguesa", "Renata", 3),
-            ("Matemática", "Nadia", 5),
-            ("Cidadania e Civismo", "Fernanda", 1),
-            ("Educação Financeira", "Diomar", 2),
-            ("Programação e Robótica", "Gian", 2),
-            ("Rec língua portuguesa", "Márcia Regina", 2),
-            ("Rec matemática", "Mayhara", 2),
-        ],
-        "9C": [
-            ("Arte", "Andreza", 2),
-            ("Ciências", "Andreia", 2),
-            ("Educação Física", "Giovani", 2),
-            ("Geografia", "Aline", 3),
-            ("História", "Rosani", 2),
-            ("Língua Inglesa", "Rafaela", 2),
-            ("Língua Portuguesa", "Renata", 3),
-            ("Matemática", "Nadia", 5),
-            ("Cidadania e Civismo", "Fernanda", 1),
-            ("Educação Financeira", "Diomar", 2),
-            ("Programação e Robótica", "Gian", 2),
-            ("Rec língua portuguesa", "Márcia Regina", 2),
-            ("Rec matemática", "Mayhara", 2),
-        ],
-        "9D": [
-            ("Arte", "Andreza", 2),
-            ("Ciências", "Andreia", 2),
-            ("Educação Física", "Giovani", 2),
-            ("Geografia", "Aline", 3),
-            ("História", "Rosani", 2),
-            ("Língua Inglesa", "Rafaela", 2),
-            ("Língua Portuguesa", "Renata", 3),
-            ("Matemática", "Nadia", 5),
-            ("Cidadania e Civismo", "Fernanda", 1),
-            ("Educação Financeira", "Diomar", 2),
-            ("Programação e Robótica", "Gian", 2),
-            ("Rec língua portuguesa", "Márcia Regina", 2),
-            ("Rec matemática", "Mayhara", 2),
+            ("Arte", 2, "Andreza"),
+            ("Ciências", 2, "Andreia"),
+            ("Educação Física", 2, "Giovani"),
+            ("Geografia", 3, "Aline"),
+            ("História", 2, "Rosani"),
+            ("Língua Inglesa", 2, "Rafaela"),
+            ("Língua Portuguesa", 3, "Renata"),
+            ("Matemática", 5, "Nadia"),
+            ("Cidadania e Civismo", 1, "Fernanda"),
+            ("Educação Financeira", 2, "Diomar"),
+            ("Programação e Robótica", 2, "Gian"),
+            ("Rec. língua portuguesa", 2, "Márcia Regina"),
+            ("Rec matemática", 2, "Mayhara"),
+            ("Rec matemática", 2, "Alvaro"),  # 2 professores mesmo horário
         ],
         "1A": [
-            ("Arte", "Andreza", 2),
-            ("Biologia", "Carolina", 2),
-            ("Educação Física", "Rodrigo", 2),
-            ("Geografia", "Edelvan", 2),
-            ("Língua Inglesa", "Rafaela", 1),
-            ("Língua Portuguesa", "Márcia Regina", 1),
-            ("Matemática", "Sandro", 3),
-            ("Cidadania e Civismo", "Cristiano", 1),
-            ("Programação e IA", "Lucas", 1),
-            ("Química", "Aline V", 2),
-            ("Estratégias de MkT", "Lucas", 2),
-            ("Finanças Empresariais", "Lucas", 2),
-            ("Princípios de Administração", "Lucia", 2),
-            ("Recursos Humanos", "Lucia", 2),
-            ("Técnicas Integradas", "Matheus", 1),
-            ("Informática Empresarial", "Lucia", 2),
-            ("Princípios Econômicos", "Matheus", 1),
+            ("Arte", 2, "Andreza"),
+            ("Biologia", 2, "Carolina"),
+            ("Educação Física", 2, "Rodrigo"),
+            ("Geografia", 2, "Edelvan"),
+            ("Língua Inglesa", 1, "Rafaela"),
+            ("Língua Portuguesa", 1, "Márcia Regina"),
+            ("Matemática", 3, "Sandro"),
+            ("Cidadania e Civismo", 1, "Cristiano"),
+            ("Programação e IA", 1, "Lucas"),
+            ("Química", 2, "Aline V"),
+            ("Estratégias de MkT", 2, "Lucas"),
+            ("Finanças Empresariais", 2, "Lucas"),
+            ("Princípios de Administração", 2, "Lucia"),
+            ("Recursos Humanos", 2, "Lucia"),
+            ("Técnicas Integradas", 1, "Matheus"),
+            ("Informática Empresarial", 2, "Lucia"),
+            ("Princípios Econômicos", 1, "Matheus"),
         ],
         "1B": [
-            ("Arte", "Andreza", 2),
-            ("Biologia", "Carolina", 2),
-            ("Educação Física", "Rodrigo", 2),
-            ("Geografia", "Edelvan", 2),
-            ("Língua Inglesa", "Rafaela", 1),
-            ("Língua Portuguesa", "Márcia Regina", 2),
-            ("Matemática", "Sandro", 3),
-            ("Cidadania e Civismo", "Cristiano", 1),
-            ("Programação e IA", "Matheus", 1),
-            ("Química", "Aline V", 2),
-            ("SENAI", "SENAI", 12),
+            ("Arte", 2, "Andreza"),
+            ("Biologia", 2, "Carolina"),
+            ("Educação Física", 2, "Rodrigo"),
+            ("Geografia", 2, "Edelvan"),
+            ("Língua Inglesa", 1, "Rafaela"),
+            ("Língua Portuguesa", 2, "Márcia Regina"),
+            ("Matemática", 3, "Sandro"),
+            ("Cidadania e Civismo", 1, "Cristiano"),
+            ("Programação e IA", 1, "Matheus"),
+            ("Química", 2, "Aline V"),
+            ("SENAI", 12, "SENAI"),
         ],
         "1C": [
-            ("Arte", "Andreza", 2),
-            ("Biologia", "Carolina", 2),
-            ("Educação Física", "Rodrigo", 2),
-            ("Geografia", "Edelvan", 2),
-            ("Língua Inglesa", "Rafaela", 2),
-            ("Língua Portuguesa", "Márcia Regina", 4),
-            ("Matemática", "Sandro", 4),
-            ("Cidadania e Civismo", "Cristiano", 1),
-            ("Programação e IA", "Matheus", 2),
-            ("Química", "Aline V", 2),
-            ("Educação Financeira", "Diomar", 2),
-            ("Arte Paranaense", "Marly", 1),
-            ("História do Paraná", "Rosane", 2),
-            ("Geografia do Paraná", "Edelvan", 2),
+            ("Arte", 2, "Andreza"),
+            ("Biologia", 2, "Carolina"),
+            ("Educação Física", 2, "Rodrigo"),
+            ("Geografia", 2, "Edelvan"),
+            ("Língua Inglesa", 2, "Rafaela"),
+            ("Língua Portuguesa", 4, "Márcia Regina"),
+            ("Matemática", 4, "Sandro"),
+            ("Cidadania e Civismo", 1, "Cristiano"),
+            ("Programação e IA", 2, "Matheus"),
+            ("Química", 2, "Aline V"),
+            ("Educação Financeira", 2, "Diomar"),
+            ("Arte Paranaense", 1, "Marly"),
+            ("História do Paraná", 2, "Rosane"),
+            ("Geografia do Paraná", 2, "Edelvan"),
         ],
         "2A": [
-            ("Arte", "Andreza", 2),
-            ("Educação Física", "Rodrigo", 2),
-            ("Língua Inglesa", "Rafaela", 2),
-            ("Língua Portuguesa", "Renata", 4),
-            ("Matemática", "Sandro", 4),
-            ("Filosofia", "Cristiano", 2),
-            ("Educação Financeira", "Mayhara", 2),
-            ("Cidadania e Civismo", "Fernanda", 1),
-            ("Sociologia", "Cristiano", 2),
-            ("Literatura e Prod de texto", "Fernanda", 2),
-            ("Sociologia GOV CID Sociedade", "Edelvan", 1),
-            ("Filosofia Análise de Textos Filos", "Cristiano", 2),
+            ("Arte", 2, "Andreza"),
+            ("Educação Física", 2, "Rodrigo"),
+            ("Língua Inglesa", 2, "Rafaela"),
+            ("Língua Portuguesa", 4, "Renata"),
+            ("Matemática", 4, "Sandro"),
+            ("Filosofia", 2, "Cristiano"),
+            ("Educação Financeira", 2, "Mayhara"),
+            ("Cidadania e Civismo", 1, "Fernanda"),
+            ("Sociologia", 2, "Cristiano"),
+            ("Literatura e Prod de texto", 2, "Fernanda"),
+            ("Sociologia GOV CID Sociedade", 1, "Edelvan"),
+            ("Filosofia Análise de Textos Filos", 2, "Cristiano"),
         ],
         "2B": [
-            ("Arte", "Andreza", 2),
-            ("Educação Física", "Rodrigo", 2),
-            ("Língua Inglesa", "Rafaela", 2),
-            ("Língua Portuguesa", "Renata", 4),
-            ("Matemática", "Sandro", 4),
-            ("Filosofia", "Cristiano", 2),
-            ("Educação Financeira", "Mayhara", 2),
-            ("Cidadania e Civismo", "Fernanda", 1),
-            ("Sociologia", "Cristiano", 2),
-            ("Programação", "Gian", 2),
-            ("Robótica", "Gian", 2),
-            ("Física e Tecnologia", "Alvaro", 1),
+            ("Arte", 2, "Andreza"),
+            ("Educação Física", 2, "Rodrigo"),
+            ("Língua Inglesa", 2, "Rafaela"),
+            ("Língua Portuguesa", 4, "Renata"),
+            ("Matemática", 4, "Sandro"),
+            ("Filosofia", 2, "Cristiano"),
+            ("Educação Financeira", 2, "Mayhara"),
+            ("Cidadania e Civismo", 1, "Fernanda"),
+            ("Sociologia", 2, "Cristiano"),
+            ("Programação", 2, "Gian"),
+            ("Robótica", 2, "Gian"),
+            ("Física e Tecnologia", 1, "Alvaro"),
         ],
         "3A": [
-            ("Educação Física", "Giovani", 2),
-            ("Física", "Alvaro", 2),
-            ("Língua Portuguesa", "Mirele", 4),
-            ("Matemática", "Paola", 4),
-            ("Cidadania e Civismo", "Edelvan", 1),
-            ("Educação Financeira", "Mayhara", 2),
-            ("Projeto de vida", "Edelvan", 1),
-            ("Rec língua portuguesa", "Mirele", 2),
-            ("Rec matemática", "Mayhara", 2),
-            ("Arte II", "Marly", 2),
-            ("Geografia I", "Edelvan", 2),
-            ("História I", "Rosane", 2),
-            ("Língua Inglesa I", "Gessinger", 2),
-            ("Sociologia I", "Cristiano", 2),
+            ("Educação Física", 2, "Giovani"),
+            ("Física", 2, "Alvaro"),
+            ("Língua Portuguesa", 4, "Mirele"),
+            ("Matemática", 4, "Paola"),
+            ("Cidadania e Civismo", 1, "Edelvan"),
+            ("Educação Financeira", 2, "Mayhara"),
+            ("Projeto de vida", 1, "Edelvan"),
+            ("Rec. língua portuguesa", 2, "Mirele"),
+            ("Rec matemática", 2, "Mayhara"),
+            ("Arte II", 2, "Marly"),
+            ("Geografia I", 2, "Edelvan"),
+            ("História I", 2, "Rosane"),
+            ("Língua Inglesa I", 2, "Gessinger"),
+            ("Sociologia I", 2, "Cristiano"),
         ],
         "3B": [
-            ("Educação Física", "Giovani", 2),
-            ("Física", "Alvaro", 2),
-            ("Língua Portuguesa", "Mirele", 4),
-            ("Matemática", "Paola", 4),
-            ("Cidadania e Civismo", "Edelvan", 1),
-            ("Educação Financeira", "Paola", 2),
-            ("Projeto de vida", "Edelvan", 1),
-            ("Rec língua portuguesa", "Mirele", 2),
-            ("Rec matemática", "Mayhara", 2),
-            ("Biologia II", "Carolina", 2),
-            ("Física II", "Alvaro", 2),
-            ("Física III", "Alvaro", 2),
-            ("Matemática II", "Helmut", 2),
-            ("Química", "Aline V", 2),
+            ("Educação Física", 2, "Giovani"),
+            ("Física", 2, "Alvaro"),
+            ("Língua Portuguesa", 4, "Mirele"),
+            ("Matemática", 4, "Paola"),
+            ("Cidadania e Civismo", 1, "Edelvan"),
+            ("Educação Financeira", 2, "Paola"),
+            ("Projeto de vida", 1, "Edelvan"),
+            ("Rec. língua portuguesa", 2, "Mirele"),
+            ("Rec matemática", 2, "Mayhara"),
+            ("Biologia II", 2, "Carolina"),
+            ("Física II", 2, "Alvaro"),
+            ("Física III", 2, "Alvaro"),
+            ("Matemática II", 2, "Helmut"),
+            ("Química", 2, "Aline V"),
         ],
     }
     
-    contador = 0
-    for turma_codigo, grades in grades_data.items():
+    # Replicar 9A para 9B, 9C, 9D
+    for turma_codigo in ["9B", "9C", "9D"]:
+        grades_data[turma_codigo] = grades_data["9A"]
+    
+    # Calcular carga horária de cada professor
+    carga_professores = {}
+    for turma_codigo, materias in grades_data.items():
+        for disciplina_nome, aulas, professor_nome in materias:
+            if professor_nome not in carga_professores:
+                carga_professores[professor_nome] = 0
+            carga_professores[professor_nome] += aulas
+    
+    # Atualizar carga horária dos professores
+    for professor_nome, total_aulas in carga_professores.items():
+        professores[professor_nome].carga_horaria_maxima = total_aulas
+    db.commit()
+    
+    # Atribuir disciplinas aos professores (relação muitos-para-muitos)
+    for turma_codigo, materias in grades_data.items():
+        for disciplina_nome, aulas, professor_nome in materias:
+            prof = professores[professor_nome]
+            disc = disciplinas[disciplina_nome]
+            
+            # Adicionar disciplina ao professor se ainda não está
+            if disc not in prof.disciplinas:
+                prof.disciplinas.append(disc)
+    db.commit()
+    
+    # Criar grades curriculares
+    for turma_codigo, materias in grades_data.items():
         turma = turmas[turma_codigo]
-        
-        for disciplina_nome, professor_nome, aulas in grades:
-            disciplina = disciplinas.get(disciplina_nome)
-            professor = professores.get(professor_nome)
-            
-            if not disciplina:
-                print(f"⚠️  Disciplina '{disciplina_nome}' não encontrada!")
-                continue
-            
-            if not professor:
-                print(f"⚠️  Professor '{professor_nome}' não encontrado!")
-                continue
-            
+        for disciplina_nome, aulas, professor_nome in materias:
             grade = GradeCurricular(
                 turma_id=turma.id,
-                disciplina_id=disciplina.id,
-                professor_id=professor.id,
-                aulas_por_semana=aulas,
-                ativa=True
+                disciplina_id=disciplinas[disciplina_nome].id,
+                professor_id=professores[professor_nome].id,
+                aulas_por_semana=aulas
             )
             db.add(grade)
-            contador += 1
     
     db.commit()
-    print(f"✅ Criadas {contador} grades curriculares!")
 
-def criar_horario_exemplo(db: Session):
-    """Cria um horário de exemplo para teste"""
-    print("\n🕐 Criando horário de exemplo...")
-    
+def criar_horario_exemplo(db):
+    """Cria um horário exemplo"""
     horario = Horario(
-        nome="Horário 2025 - 1º Semestre",
-        ano_letivo=2025,
+        nome="Horário 2026",
+        ano_letivo=2026,
         semestre=1,
-        status="RASCUNHO",
-        total_aulas=0,
-        aulas_alocadas=0,
-        qualidade_score=0
+        status="RASCUNHO"
     )
     db.add(horario)
     db.commit()
     db.refresh(horario)
-    
-    print(f"✅ Criado horário ID {horario.id}!")
     return horario
 
 def main():
-    """Função principal"""
     print("=" * 60)
     print("🎓 SEED DATA - Sistema de Horários Escolares")
     print("=" * 60)
     
-    db = SessionLocal()
+    # Criar tabelas
+    Base.metadata.create_all(bind=engine)
     
+    db = SessionLocal()
     try:
-        # 1. Limpar dados existentes
+        print("🗑️  Limpando dados existentes...")
         limpar_dados(db)
+        print("✅ Dados limpos!")
         
-        # 2. Criar sede e ambientes
-        sede = criar_sede_e_ambientes(db)
+        print("\n🏫 Criando sede e ambientes...")
+        sede = criar_sede_ambientes(db)
+        print(f"✅ Criada 1 sede com 20 ambientes!")
         
-        # 3. Criar professores
+        print("\n👨‍🏫 Criando professores...")
         professores = criar_professores(db)
+        print(f"✅ Criados {len(professores)} professores!")
         
-        # 4. Criar disciplinas
+        print("\n📚 Criando disciplinas...")
         disciplinas = criar_disciplinas(db)
+        print(f"✅ Criadas {len(disciplinas)} disciplinas!")
         
-        # 5. Criar turmas
+        print("\n🎓 Criando turmas...")
         turmas = criar_turmas(db)
+        print(f"✅ Criadas {len(turmas)} turmas!")
         
-        # 6. Criar grades curriculares
-        criar_grades_curriculares(db, turmas, disciplinas, professores)
+        print("\n📋 Criando grades curriculares e atribuindo professores...")
+        criar_grades_curriculares(db, professores, disciplinas, turmas)
+        total_grades = db.query(GradeCurricular).count()
+        print(f"✅ Criadas {total_grades} grades curriculares!")
         
-        # 7. Criar horário de exemplo
+        print("\n🕐 Criando horário de exemplo...")
         horario = criar_horario_exemplo(db)
+        print(f"✅ Criado horário ID {horario.id}!")
         
         print("\n" + "=" * 60)
         print("✅ SEED CONCLUÍDO COM SUCESSO!")
         print("=" * 60)
-        print(f"\n📊 Resumo:")
+        print("\n📊 Resumo:")
         print(f"   • 1 Sede")
-        print(f"   • {db.query(Ambiente).count()} Ambientes")
+        print(f"   • 20 Ambientes")
         print(f"   • {len(professores)} Professores")
         print(f"   • {len(disciplinas)} Disciplinas")
         print(f"   • {len(turmas)} Turmas")
-        print(f"   • {db.query(GradeCurricular).count()} Grades Curriculares")
+        print(f"   • {total_grades} Grades Curriculares")
         print(f"   • 1 Horário (ID: {horario.id})")
-        print("\n🚀 Sistema pronto para gerar horários!")
+        print(f"\n🚀 Sistema pronto para gerar horários!")
         print(f"   Execute: POST /api/v1/horarios/{horario.id}/gerar")
         print("=" * 60)
         

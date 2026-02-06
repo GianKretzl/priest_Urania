@@ -10,7 +10,6 @@ export default function DisciplinasPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     nome: '',
-    codigo: '',
     carga_horaria_semanal: 4,
     duracao_aula: 50,
     cor: '#3B82F6',
@@ -52,7 +51,6 @@ export default function DisciplinasPage() {
     setEditingId(disciplina.id);
     setFormData({
       nome: disciplina.nome,
-      codigo: disciplina.codigo,
       carga_horaria_semanal: disciplina.carga_horaria_semanal,
       duracao_aula: disciplina.duracao_aula,
       cor: disciplina.cor,
@@ -79,7 +77,6 @@ export default function DisciplinasPage() {
     setEditingId(null);
     setFormData({
       nome: '',
-      codigo: '',
       carga_horaria_semanal: 4,
       duracao_aula: 50,
       cor: '#3B82F6',
@@ -107,9 +104,6 @@ export default function DisciplinasPage() {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Código
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Nome
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -133,9 +127,6 @@ export default function DisciplinasPage() {
             {disciplinas.map((disciplina) => (
               <tr key={disciplina.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {disciplina.codigo}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {disciplina.nome}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -192,18 +183,6 @@ export default function DisciplinasPage() {
               {editingId ? 'Editar Disciplina' : 'Nova Disciplina'}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Código
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.codigo}
-                  onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Nome

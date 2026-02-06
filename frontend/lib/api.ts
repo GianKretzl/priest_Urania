@@ -34,18 +34,18 @@ export default api;
 export interface Disciplina {
   id: number;
   nome: string;
-  codigo: string;
   carga_horaria_semanal: number;
   duracao_aula: number;
   cor: string;
   ativa: boolean;
+  professores?: { id: number; nome: string }[];
 }
 
 export interface Turma {
   id: number;
   nome: string;
   ano_serie: string;
-  turno: 'MATUTINO' | 'VESPERTINO' | 'NOTURNO' | 'INTEGRAL';
+  turno: 'MATUTINO' | 'VESPERTINO' | 'NOTURNO';
   numero_alunos: number;
   ativa: boolean;
 }

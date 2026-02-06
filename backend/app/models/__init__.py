@@ -1,6 +1,7 @@
 from app.models.disciplina import Disciplina
 from app.models.turma import Turma
 from app.models.professor import Professor
+from app.models.professor_disciplina import professor_disciplina
 from app.models.sede import Sede
 from app.models.ambiente import Ambiente
 from app.models.grade_curricular import GradeCurricular

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { horarioService, turmaService, professorService, HorarioAula, Horario, Turma, Professor } from '@/lib/api';
+import { horarioService, turmaService, professorService, disciplinaService, HorarioAula, Horario, Turma, Professor, Disciplina } from '@/lib/api';
 import { FaDownload, FaCalendarAlt, FaChalkboardTeacher } from 'react-icons/fa';
 
 export default function HorarioDetalhesPage() {
@@ -13,6 +13,7 @@ export default function HorarioDetalhesPage() {
   const [aulas, setAulas] = useState<HorarioAula[]>([]);
   const [turmas, setTurmas] = useState<Turma[]>([]);
   const [professores, setProfessores] = useState<Professor[]>([]);
+  const [disciplinas, setDisciplinas] = useState<Disciplina[]>([]);
   const [visualizacao, setVisualizacao] = useState<'turma' | 'professor'>('turma');
   const [selecionado, setSelecionado] = useState<number | null>(null);
 
@@ -25,17 +26,19 @@ export default function HorarioDetalhesPage() {
 
   const carregarDados = async () => {
     try {
-      const [horarioResp, aulasResp, turmasResp, professoresResp] = await Promise.all([
+      const [horarioResp, aulasResp, turmasResp, professoresResp, disciplinasResp] = await Promise.all([
         horarioService.getById(horarioId),
         horarioService.getAulas(horarioId),
         turmaService.getAll(),
         professorService.getAll(),
+        disciplinaService.getAll(),
       ]);
 
       setHorario(horarioResp.data);
       setAulas(aulasResp.data);
       setTurmas(turmasResp.data);
       setProfessores(professoresResp.data);
+      setDisciplinas(disciplinasResp.data);
 
       if (turmasResp.data.length > 0) {
         setSelecionado(turmasResp.data[0].id);
@@ -58,9 +61,24 @@ export default function HorarioDetalhesPage() {
     });
   };
 
-  const getDisciplinaNome = (aulaId: number): string => {
-    // Simplificado - em produção, você deveria carregar os dados das disciplinas
-    return 'Disciplina';
+  const getDisciplinaNome = (disciplinaId: number): string => {
+    const disciplina = disciplinas.find(d => d.id === disciplinaId);
+    return disciplina?.nome || 'N/A';
+  };
+
+  const getProfessorNome = (professorId: number): string => {
+    const professor = professores.find(p => p.id === professorId);
+    return professor?.nome || 'N/A';
+  };
+
+  const getTurmaNome = (turmaId: number): string => {
+    const turma = turmas.find(t => t.id === turmaId);
+    return turma?.nome || 'N/A';
+  };
+
+  const getDisciplinaCor = (disciplinaId: number): string => {
+    const disciplina = disciplinas.find(d => d.id === disciplinaId);
+    return disciplina?.cor || '#3B82F6';
   };
 
   return (
@@ -177,9 +195,23 @@ export default function HorarioDetalhesPage() {
                   return (
                     <td key={dia} className="px-4 py-3 text-center">
                       {aula ? (
-                        <div className="bg-blue-100 border border-blue-300 rounded p-2 text-xs">
-                          <p className="font-semibold">Aula</p>
-                          <p className="text-gray-600">
+                        <div 
+                          className="border rounded p-2 text-xs shadow-sm"
+                          style={{ 
+                            backgroundColor: `${getDisciplinaCor(aula.disciplina_id)}20`,
+                            borderColor: getDisciplinaCor(aula.disciplina_id)
+                          }}
+                        >
+                          <p className="font-semibold text-gray-900">
+                            {getDisciplinaNome(aula.disciplina_id)}
+                          </p>
+                          <p className="text-gray-700 mt-1">
+                            {visualizacao === 'turma' 
+                              ? getProfessorNome(aula.professor_id)
+                              : getTurmaNome(aula.turma_id)
+                            }
+                          </p>
+                          <p className="text-gray-500 text-xs mt-1">
                             {aula.horario_inicio} - {aula.horario_fim}
                           </p>
                         </div>

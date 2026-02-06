@@ -3,6 +3,11 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 
+interface Disciplina {
+  id: number;
+  nome: string;
+}
+
 interface Professor {
   id: number;
   nome: string;
@@ -15,10 +20,12 @@ interface Professor {
   max_aulas_dia: number;
   tempo_deslocamento: number;
   ativo: boolean;
+  disciplinas?: Disciplina[];
 }
 
 export default function ProfessoresPage() {
   const [professores, setProfessores] = useState<Professor[]>([]);
+  const [disciplinas, setDisciplinas] = useState<Disciplina[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<Professor | null>(null);
@@ -34,11 +41,22 @@ export default function ProfessoresPage() {
     max_aulas_dia: 8,
     tempo_deslocamento: 0,
     ativo: true,
+    disciplinas_ids: [] as number[],
   });
 
   useEffect(() => {
     carregarProfessores();
+    carregarDisciplinas();
   }, []);
+
+  const carregarDisciplinas = async () => {
+    try {
+      const response = await api.get('/disciplinas');
+      setDisciplinas(response.data);
+    } catch (error) {
+      console.error('Erro ao carregar disciplinas:', error);
+    }
+  };
 
   const carregarProfessores = async () => {
     try {
@@ -87,6 +105,7 @@ export default function ProfessoresPage() {
       max_aulas_dia: professor.max_aulas_dia,
       tempo_deslocamento: professor.tempo_deslocamento,
       ativo: professor.ativo,
+      disciplinas_ids: professor.disciplinas?.map(d => d.id) || [],
     });
     setShowForm(true);
   };
@@ -116,6 +135,7 @@ export default function ProfessoresPage() {
       max_aulas_dia: 8,
       tempo_deslocamento: 0,
       ativo: true,
+      disciplinas_ids: [],
     });
   };
 
@@ -256,6 +276,45 @@ export default function ProfessoresPage() {
                 />
               </div>
 
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Disciplinas que leciona
+                </label>
+                <div className="border border-gray-300 rounded-lg p-3 max-h-64 overflow-y-auto bg-gray-50">
+                  {disciplinas.length === 0 ? (
+                    <p className="text-sm text-gray-500">Nenhuma disciplina cadastrada</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {disciplinas.map((disciplina) => (
+                        <label key={disciplina.id} className="flex items-center space-x-2 hover:bg-gray-100 p-2 rounded cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.disciplinas_ids.includes(disciplina.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormData({
+                                  ...formData,
+                                  disciplinas_ids: [...formData.disciplinas_ids, disciplina.id]
+                                });
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  disciplinas_ids: formData.disciplinas_ids.filter(id => id !== disciplina.id)
+                                });
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">
+                            {disciplina.nome} <span className="text-gray-500">({disciplina.codigo})</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <label className="flex items-center space-x-2">
                   <input
@@ -303,7 +362,7 @@ export default function ProfessoresPage() {
                 Email
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Telefone
+                Disciplinas
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Carga Horária
@@ -325,8 +384,21 @@ export default function ProfessoresPage() {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {professor.email}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {professor.telefone || '-'}
+                <td className="px-6 py-4 text-sm text-gray-500">
+                  {professor.disciplinas && professor.disciplinas.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {professor.disciplinas.map((disc) => (
+                        <span
+                          key={disc.id}
+                          className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs"
+                        >
+                          {disc.nome}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-gray-400 italic">Nenhuma</span>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {professor.carga_horaria_maxima}h

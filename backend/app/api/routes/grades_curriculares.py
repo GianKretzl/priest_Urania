@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 from app.core.database import get_db
 from app.models.grade_curricular import GradeCurricular as GradeCurricularModel
@@ -10,13 +10,21 @@ router = APIRouter(prefix="/grades-curriculares", tags=["grades-curriculares"])
 
 @router.get("/", response_model=List[GradeCurricular])
 def listar_grades(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    grades = db.query(GradeCurricularModel).offset(skip).limit(limit).all()
+    grades = db.query(GradeCurricularModel).options(
+        joinedload(GradeCurricularModel.turma),
+        joinedload(GradeCurricularModel.disciplina),
+        joinedload(GradeCurricularModel.professor)
+    ).offset(skip).limit(limit).all()
     return grades
 
 
 @router.get("/turma/{turma_id}", response_model=List[GradeCurricular])
 def listar_grades_por_turma(turma_id: int, db: Session = Depends(get_db)):
-    grades = db.query(GradeCurricularModel).filter(GradeCurricularModel.turma_id == turma_id).all()
+    grades = db.query(GradeCurricularModel).options(
+        joinedload(GradeCurricularModel.turma),
+        joinedload(GradeCurricularModel.disciplina),
+        joinedload(GradeCurricularModel.professor)
+    ).filter(GradeCurricularModel.turma_id == turma_id).all()
     return grades
 
 

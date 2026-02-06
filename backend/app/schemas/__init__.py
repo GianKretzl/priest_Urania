@@ -8,7 +8,6 @@ class TurnoEnum(str, Enum):
     MATUTINO = "MATUTINO"
     VESPERTINO = "VESPERTINO"
     NOTURNO = "NOTURNO"
-    INTEGRAL = "INTEGRAL"
 
 
 class TipoAmbienteEnum(str, Enum):
@@ -39,7 +38,6 @@ class StatusHorarioEnum(str, Enum):
 # Disciplina Schemas
 class DisciplinaBase(BaseModel):
     nome: str
-    codigo: str
     carga_horaria_semanal: int 
     duracao_aula: int = 50
     cor: str = "#3B82F6"
@@ -52,7 +50,6 @@ class DisciplinaCreate(DisciplinaBase):
 
 class DisciplinaUpdate(BaseModel):
     nome: Optional[str] = None
-    codigo: Optional[str] = None
     carga_horaria_semanal: Optional[int] = None
     duracao_aula: Optional[int] = None
     cor: Optional[str] = None
@@ -109,7 +106,7 @@ class ProfessorBase(BaseModel):
 
 
 class ProfessorCreate(ProfessorBase):
-    pass
+    disciplinas_ids: List[int] = []
 
 
 class ProfessorUpdate(BaseModel):
@@ -123,10 +120,12 @@ class ProfessorUpdate(BaseModel):
     max_aulas_dia: Optional[int] = None
     tempo_deslocamento: Optional[int] = None
     ativo: Optional[bool] = None
+    disciplinas_ids: Optional[List[int]] = None
 
 
 class Professor(ProfessorBase):
     id: int
+    disciplinas: List[Disciplina] = []
     
     class Config:
         from_attributes = True
@@ -215,6 +214,9 @@ class GradeCurricularUpdate(BaseModel):
 
 class GradeCurricular(GradeCurricularBase):
     id: int
+    turma: Optional[Turma] = None
+    disciplina: Optional[Disciplina] = None
+    professor: Optional[Professor] = None
     
     class Config:
         from_attributes = True
@@ -306,7 +308,6 @@ class HorarioAula(HorarioAulaBase):
 
 # Geração de Horário
 class GerarHorarioRequest(BaseModel):
-    horario_id: int
     limitar_janelas: bool = True
     respeitar_deslocamento: bool = True
     distribuir_uniformemente: bool = True

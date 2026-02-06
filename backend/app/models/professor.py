@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, Float
 from sqlalchemy.orm import relationship
 from app.core.database import Base
+from app.models.professor_disciplina import professor_disciplina
 
 
 class Professor(Base):
@@ -26,6 +27,7 @@ class Professor(Base):
     ativo = Column(Boolean, default=True)
     
     # Relacionamentos
+    disciplinas = relationship("Disciplina", secondary=professor_disciplina, back_populates="professores")
     grades_curriculares = relationship("GradeCurricular", back_populates="professor")
     disponibilidades = relationship("Disponibilidade", back_populates="professor")
     horarios_aula = relationship("HorarioAula", back_populates="professor")
