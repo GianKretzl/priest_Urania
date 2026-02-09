@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { 
   FaHome, 
@@ -33,8 +34,8 @@ const menuItems = [
       { name: 'Disciplinas', path: '/cadastros/disciplinas', icon: FaBook },
       { name: 'Turmas', path: '/cadastros/turmas', icon: FaUsers },
       { name: 'Professores', path: '/cadastros/professores', icon: FaChalkboardTeacher },
-      { name: 'Sedes', path: '/cadastros/sedes', icon: FaBuilding },
-      { name: 'Ambientes', path: '/cadastros/ambientes', icon: FaDoorOpen },
+      // { name: 'Sedes', path: '/cadastros/sedes', icon: FaBuilding },
+      // { name: 'Ambientes', path: '/cadastros/ambientes', icon: FaDoorOpen },
       { name: 'Grade Curricular', path: '/cadastros/grades', icon: FaClipboardList },
       { name: 'Disponibilidade', path: '/cadastros/disponibilidades', icon: FaClock },
     ]
@@ -52,9 +53,19 @@ export default function Sidebar() {
   return (
     <div className="bg-gray-900 text-white w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out">
       {/* Logo */}
-      <div className="flex items-center space-x-2 px-4">
-        <FaCalendarAlt className="text-3xl text-blue-500" />
-        <span className="text-2xl font-extrabold">No Cry Baby</span>
+      <div className="flex items-center justify-center px-4 pb-4 border-b border-gray-700">
+        <Image
+          src="/logo.png"
+          alt="No Cry Baby Logo"
+          width={180}
+          height={180}
+          priority
+          className="w-full max-w-[180px] h-auto"
+          onError={(e) => {
+            // Fallback para SVG se PNG não existir
+            e.currentTarget.src = '/logo.svg';
+          }}
+        />
       </div>
 
       {/* Navigation */}

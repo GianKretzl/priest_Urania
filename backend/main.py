@@ -6,8 +6,8 @@ from app.api.routes import (
     disciplinas,
     turmas,
     professores,
-    sedes,
-    ambientes,
+    # sedes,
+    # ambientes,
     grades_curriculares,
     disponibilidades,
     horarios,
@@ -35,8 +35,8 @@ app.add_middleware(
 app.include_router(disciplinas.router, prefix=settings.API_V1_STR)
 app.include_router(turmas.router, prefix=settings.API_V1_STR)
 app.include_router(professores.router, prefix=settings.API_V1_STR)
-app.include_router(sedes.router, prefix=settings.API_V1_STR)
-app.include_router(ambientes.router, prefix=settings.API_V1_STR)
+# app.include_router(sedes.router, prefix=settings.API_V1_STR)
+# app.include_router(ambientes.router, prefix=settings.API_V1_STR)
 app.include_router(grades_curriculares.router, prefix=settings.API_V1_STR)
 app.include_router(disponibilidades.router, prefix=settings.API_V1_STR)
 app.include_router(horarios.router, prefix=settings.API_V1_STR)

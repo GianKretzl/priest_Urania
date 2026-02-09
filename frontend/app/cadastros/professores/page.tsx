@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
+import { FaEdit, FaTrash } from 'react-icons/fa';
 
 interface Disciplina {
   id: number;
@@ -52,7 +53,11 @@ export default function ProfessoresPage() {
   const carregarDisciplinas = async () => {
     try {
       const response = await api.get('/disciplinas');
-      setDisciplinas(response.data);
+      // Ordenar alfabeticamente por nome
+      const disciplinasOrdenadas = response.data.sort((a: Disciplina, b: Disciplina) => 
+        a.nome.localeCompare(b.nome)
+      );
+      setDisciplinas(disciplinasOrdenadas);
     } catch (error) {
       console.error('Erro ao carregar disciplinas:', error);
     }
@@ -61,7 +66,11 @@ export default function ProfessoresPage() {
   const carregarProfessores = async () => {
     try {
       const response = await api.get('/professores');
-      setProfessores(response.data);
+      // Ordenar alfabeticamente por nome
+      const professoresOrdenados = response.data.sort((a: Professor, b: Professor) => 
+        a.nome.localeCompare(b.nome)
+      );
+      setProfessores(professoresOrdenados);
     } catch (error) {
       console.error('Erro ao carregar professores:', error);
       alert('Erro ao carregar professores');
@@ -149,205 +158,208 @@ export default function ProfessoresPage() {
         <h1 className="text-3xl font-bold text-gray-800">Professores</h1>
         <button
           onClick={() => {
-            setShowForm(!showForm);
             setEditando(null);
             resetForm();
+            setShowForm(true);
           }}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
         >
-          {showForm ? 'Cancelar' : '+ Novo Professor'}
+          + Novo Professor
         </button>
       </div>
 
+      {/* Modal */}
       {showForm && (
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-4">
-            {editando ? 'Editar Professor' : 'Novo Professor'}
-          </h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nome *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.nome}
-                  onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-4">
+              {editando ? 'Editar Professor' : 'Novo Professor'}
+            </h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nome *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.nome}
+                    onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email *
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Telefone
-                </label>
-                <input
-                  type="text"
-                  value={formData.telefone}
-                  onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Telefone
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.telefone}
+                    onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  CPF
-                </label>
-                <input
-                  type="text"
-                  value={formData.cpf}
-                  onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    CPF
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.cpf}
+                    onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Carga Horária Máxima (aulas/semana)
-                </label>
-                <input
-                  type="number"
-                  value={formData.carga_horaria_maxima}
-                  onChange={(e) => setFormData({ ...formData, carga_horaria_maxima: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Carga Horária Máxima (aulas/semana)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.carga_horaria_maxima}
+                    onChange={(e) => setFormData({ ...formData, carga_horaria_maxima: parseInt(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Horas-Atividade (h/semana)
-                </label>
-                <input
-                  type="number"
-                  value={formData.horas_atividade}
-                  onChange={(e) => setFormData({ ...formData, horas_atividade: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Horas-Atividade (h/semana)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.horas_atividade}
+                    onChange={(e) => setFormData({ ...formData, horas_atividade: parseInt(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Máx. Aulas Seguidas
-                </label>
-                <input
-                  type="number"
-                  value={formData.max_aulas_seguidas}
-                  onChange={(e) => setFormData({ ...formData, max_aulas_seguidas: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Máx. Aulas Seguidas
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.max_aulas_seguidas}
+                    onChange={(e) => setFormData({ ...formData, max_aulas_seguidas: parseInt(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Máx. Aulas por Dia
-                </label>
-                <input
-                  type="number"
-                  value={formData.max_aulas_dia}
-                  onChange={(e) => setFormData({ ...formData, max_aulas_dia: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Máx. Aulas por Dia
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.max_aulas_dia}
+                    onChange={(e) => setFormData({ ...formData, max_aulas_dia: parseInt(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tempo Deslocamento (minutos)
-                </label>
-                <input
-                  type="number"
-                  value={formData.tempo_deslocamento}
-                  onChange={(e) => setFormData({ ...formData, tempo_deslocamento: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tempo Deslocamento (minutos)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.tempo_deslocamento}
+                    onChange={(e) => setFormData({ ...formData, tempo_deslocamento: parseInt(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Disciplinas que leciona
-                </label>
-                <div className="border border-gray-300 rounded-lg p-3 max-h-64 overflow-y-auto bg-gray-50">
-                  {disciplinas.length === 0 ? (
-                    <p className="text-sm text-gray-500">Nenhuma disciplina cadastrada</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {disciplinas.map((disciplina) => (
-                        <label key={disciplina.id} className="flex items-center space-x-2 hover:bg-gray-100 p-2 rounded cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={formData.disciplinas_ids.includes(disciplina.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setFormData({
-                                  ...formData,
-                                  disciplinas_ids: [...formData.disciplinas_ids, disciplina.id]
-                                });
-                              } else {
-                                setFormData({
-                                  ...formData,
-                                  disciplinas_ids: formData.disciplinas_ids.filter(id => id !== disciplina.id)
-                                });
-                              }
-                            }}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                          />
-                          <span className="text-sm text-gray-700">
-                            {disciplina.nome} <span className="text-gray-500">({disciplina.codigo})</span>
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Disciplinas que leciona
+                  </label>
+                  <div className="border border-gray-300 rounded-lg p-3 max-h-64 overflow-y-auto bg-gray-50">
+                    {disciplinas.length === 0 ? (
+                      <p className="text-sm text-gray-500">Nenhuma disciplina cadastrada</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {disciplinas.map((disciplina) => (
+                          <label key={disciplina.id} className="flex items-center space-x-2 hover:bg-gray-100 p-2 rounded cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={formData.disciplinas_ids.includes(disciplina.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData({
+                                    ...formData,
+                                    disciplinas_ids: [...formData.disciplinas_ids, disciplina.id]
+                                  });
+                                } else {
+                                  setFormData({
+                                    ...formData,
+                                    disciplinas_ids: formData.disciplinas_ids.filter(id => id !== disciplina.id)
+                                  });
+                                }
+                              }}
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-700">
+                              {disciplina.nome}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.ativo}
+                      onChange={(e) => setFormData({ ...formData, ativo: e.target.checked })}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Ativo</span>
+                  </label>
                 </div>
               </div>
 
-              <div>
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.ativo}
-                    onChange={(e) => setFormData({ ...formData, ativo: e.target.checked })}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-sm font-medium text-gray-700">Ativo</span>
-                </label>
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForm(false);
+                    setEditando(null);
+                    resetForm();
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  {editando ? 'Atualizar' : 'Cadastrar'}
+                </button>
               </div>
-            </div>
-
-            <div className="flex justify-end space-x-3 pt-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowForm(false);
-                  setEditando(null);
-                  resetForm();
-                }}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                {editando ? 'Atualizar' : 'Cadastrar'}
-              </button>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
       )}
 
@@ -359,13 +371,16 @@ export default function ProfessoresPage() {
                 Nome
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Email
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Disciplinas
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Carga Horária
+                Carga Total
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Horas em Sala
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Horas Atividade
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
@@ -380,9 +395,6 @@ export default function ProfessoresPage() {
               <tr key={professor.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                   {professor.nome}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {professor.email}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-500">
                   {professor.disciplinas && professor.disciplinas.length > 0 ? (
@@ -401,7 +413,13 @@ export default function ProfessoresPage() {
                   )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <span className="font-semibold text-gray-900">{professor.carga_horaria_maxima + professor.horas_atividade}h</span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {professor.carga_horaria_maxima}h
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {professor.horas_atividade}h
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span
@@ -414,19 +432,25 @@ export default function ProfessoresPage() {
                     {professor.ativo ? 'Ativo' : 'Inativo'}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                  <button
-                    onClick={() => handleEdit(professor)}
-                    className="text-blue-600 hover:text-blue-900"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => handleDelete(professor.id)}
-                    className="text-red-600 hover:text-red-900"
-                  >
-                    Excluir
-                  </button>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleEdit(professor)}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+                      title="Editar professor"
+                    >
+                      <FaEdit className="text-sm" />
+                      <span>Editar</span>
+                    </button>
+                    <button
+                      onClick={() => handleDelete(professor.id)}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
+                      title="Excluir professor"
+                    >
+                      <FaTrash className="text-sm" />
+                      <span>Excluir</span>
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

@@ -10,7 +10,7 @@ router = APIRouter(prefix="/turmas", tags=["turmas"])
 
 @router.get("/", response_model=List[Turma])
 def listar_turmas(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    turmas = db.query(TurmaModel).offset(skip).limit(limit).all()
+    turmas = db.query(TurmaModel).order_by(TurmaModel.nome).offset(skip).limit(limit).all()
     return turmas
 
 

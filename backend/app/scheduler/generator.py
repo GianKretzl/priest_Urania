@@ -37,6 +37,7 @@ class HorarioGenerator:
         
         # Variáveis do modelo
         self.variaveis = {}
+        self.variaveis_horas_atividade = {}  # Variáveis para horas atividade dos professores
         self.grades = []
         self.professores = {}
         self.turmas = {}
@@ -82,6 +83,20 @@ class HorarioGenerator:
                             # Variável booleana: aula está alocada neste dia/slot/ambiente?
                             var_name = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot}_amb{ambiente.id}"
                             self.variaveis[var_name] = self.model.NewBoolVar(var_name)
+        
+        # Criar variáveis para horas atividade dos professores
+        for prof_id, professor in self.professores.items():
+            if professor.horas_atividade > 0:
+                # Converter horas para slots (cada slot = duracao_aula minutos)
+                duracao_slot_horas = self.duracao_aula / 60.0
+                num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
+                
+                for hora_num in range(num_slots_atividade):
+                    for dia_idx, dia in enumerate(self.dias_semana):
+                        for slot in range(self.slots_por_dia):
+                            # Variável booleana: hora atividade está alocada neste dia/slot?
+                            var_name = f"ha_p{prof_id}_h{hora_num}_d{dia_idx}_s{slot}"
+                            self.variaveis_horas_atividade[var_name] = self.model.NewBoolVar(var_name)
     
     def adicionar_restricoes(self):
         """Adiciona todas as restrições ao modelo"""
@@ -118,11 +133,12 @@ class HorarioGenerator:
                     if vars_conflito:
                         self.model.Add(sum(vars_conflito) <= 1)
         
-        # 3. Um professor não pode dar mais de uma aula no mesmo horário
+        # 3. Um professor não pode dar mais de uma aula no mesmo horário (incluindo horas atividade)
         for prof_id in self.professores:
             for dia_idx in range(len(self.dias_semana)):
                 for slot in range(self.slots_por_dia):
                     vars_conflito = []
+                    # Verificar aulas regulares do professor
                     for grade in self.grades:
                         # Verificar se o professor é o principal ou o segundo professor
                         if grade.professor_id == prof_id or (hasattr(grade, 'professor_id_2') and grade.professor_id_2 == prof_id):
@@ -131,6 +147,16 @@ class HorarioGenerator:
                                     var_name = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot}_amb{ambiente.id}"
                                     if var_name in self.variaveis:
                                         vars_conflito.append(self.variaveis[var_name])
+                    
+                    # Verificar horas atividade do professor
+                    professor = self.professores[prof_id]
+                    if professor.horas_atividade > 0:
+                        duracao_slot_horas = self.duracao_aula / 60.0
+                        num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
+                        for hora_num in range(num_slots_atividade):
+                            var_name = f"ha_p{prof_id}_h{hora_num}_d{dia_idx}_s{slot}"
+                            if var_name in self.variaveis_horas_atividade:
+                                vars_conflito.append(self.variaveis_horas_atividade[var_name])
                     
                     if vars_conflito:
                         self.model.Add(sum(vars_conflito) <= 1)
@@ -149,7 +175,23 @@ class HorarioGenerator:
                     if vars_conflito:
                         self.model.Add(sum(vars_conflito) <= 1)
         
-        # 5. Respeitar disponibilidade dos professores
+        # 5. Cada hora atividade deve ser alocada exatamente uma vez
+        for prof_id, professor in self.professores.items():
+            if professor.horas_atividade > 0:
+                duracao_slot_horas = self.duracao_aula / 60.0
+                num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
+                for hora_num in range(num_slots_atividade):
+                    vars_hora_atividade = []
+                    for dia_idx in range(len(self.dias_semana)):
+                        for slot in range(self.slots_por_dia):
+                            var_name = f"ha_p{prof_id}_h{hora_num}_d{dia_idx}_s{slot}"
+                            if var_name in self.variaveis_horas_atividade:
+                                vars_hora_atividade.append(self.variaveis_horas_atividade[var_name])
+                    
+                    if vars_hora_atividade:
+                        self.model.Add(sum(vars_hora_atividade) == 1)
+        
+        # 6. Respeitar disponibilidade dos professores
         self._adicionar_restricoes_disponibilidade()
         
         # 6-9: Restrições de qualidade temporariamente desabilitadas para debugging

@@ -10,7 +10,7 @@ router = APIRouter(prefix="/disciplinas", tags=["disciplinas"])
 
 @router.get("/", response_model=List[Disciplina])
 def listar_disciplinas(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    disciplinas = db.query(DisciplinaModel).offset(skip).limit(limit).all()
+    disciplinas = db.query(DisciplinaModel).order_by(DisciplinaModel.nome).offset(skip).limit(limit).all()
     return disciplinas
 
 

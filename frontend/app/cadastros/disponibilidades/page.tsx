@@ -53,9 +53,13 @@ export default function DisponibilidadesPage() {
   const carregarProfessores = async () => {
     try {
       const response = await axios.get('/professores');
-      setProfessores(response.data);
-      if (response.data.length > 0) {
-        setProfessorSelecionado(response.data[0].id);
+      // Ordenar alfabeticamente por nome
+      const professoresOrdenados = response.data.sort((a: Professor, b: Professor) => 
+        a.nome.localeCompare(b.nome)
+      );
+      setProfessores(professoresOrdenados);
+      if (professoresOrdenados.length > 0) {
+        setProfessorSelecionado(professoresOrdenados[0].id);
       }
     } catch (error) {
       console.error('Erro ao carregar professores:', error);

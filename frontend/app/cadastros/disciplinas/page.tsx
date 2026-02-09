@@ -23,7 +23,11 @@ export default function DisciplinasPage() {
   const carregarDisciplinas = async () => {
     try {
       const response = await disciplinaService.getAll();
-      setDisciplinas(response.data);
+      // Ordenar alfabeticamente por nome
+      const disciplinasOrdenadas = response.data.sort((a: Disciplina, b: Disciplina) => 
+        a.nome.localeCompare(b.nome)
+      );
+      setDisciplinas(disciplinasOrdenadas);
     } catch (error) {
       console.error('Erro ao carregar disciplinas:', error);
       alert('Erro ao carregar disciplinas');
@@ -155,19 +159,25 @@ export default function DisciplinasPage() {
                     {disciplina.ativa ? 'Ativa' : 'Inativa'}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                  <button
-                    onClick={() => handleEdit(disciplina)}
-                    className="text-blue-600 hover:text-blue-900"
-                  >
-                    <FaEdit />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(disciplina.id)}
-                    className="text-red-600 hover:text-red-900"
-                  >
-                    <FaTrash />
-                  </button>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleEdit(disciplina)}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+                      title="Editar disciplina"
+                    >
+                      <FaEdit className="text-sm" />
+                      <span>Editar</span>
+                    </button>
+                    <button
+                      onClick={() => handleDelete(disciplina.id)}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
+                      title="Excluir disciplina"
+                    >
+                      <FaTrash className="text-sm" />
+                      <span>Excluir</span>
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

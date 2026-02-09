@@ -10,8 +10,8 @@ export default function CadastrosPage() {
           { nome: 'Disciplinas', desc: 'Gerenciar matérias e cargas horárias', link: '/cadastros/disciplinas' },
           { nome: 'Turmas', desc: 'Gerenciar turmas e séries', link: '/cadastros/turmas' },
           { nome: 'Professores', desc: 'Gerenciar corpo docente', link: '/cadastros/professores' },
-          { nome: 'Sedes', desc: 'Gerenciar unidades escolares', link: '/cadastros/sedes' },
-          { nome: 'Ambientes', desc: 'Gerenciar salas e espaços', link: '/cadastros/ambientes' },
+          // { nome: 'Sedes', desc: 'Gerenciar unidades escolares', link: '/cadastros/sedes' },
+          // { nome: 'Ambientes', desc: 'Gerenciar salas e espaços', link: '/cadastros/ambientes' },
           { nome: 'Grade Curricular', desc: 'Associar disciplinas e professores', link: '/cadastros/grades' },
           { nome: 'Disponibilidade', desc: 'Configurar horários dos professores', link: '/cadastros/disponibilidades' },
         ].map((item) => (

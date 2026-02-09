@@ -1,17 +1,40 @@
+'use client';
+
 import Link from 'next/link';
+import Image from 'next/image';
 import { FaCalendarAlt, FaChartLine, FaClock } from 'react-icons/fa';
 
 export default function Home() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">
-          Bem-vindo ao Sistema No Cry Baby
-        </h1>
-        <p className="text-gray-600">
-          Sistema completo de geração automática de horários escolares com otimização inteligente
-        </p>
+      <div className="bg-white rounded-lg shadow-md p-8">
+        <div className="flex flex-col md:flex-row items-center gap-6">
+          <div className="flex-shrink-0">
+            <Image
+              src="/logo.png"
+              alt="No Cry Baby Logo"
+              width={200}
+              height={200}
+              priority
+              className="w-48 h-auto"
+              onError={(e) => {
+                e.currentTarget.src = '/logo.svg';
+              }}
+            />
+          </div>
+          <div className="flex-1 text-center md:text-left">
+            <h1 className="text-4xl font-bold text-gray-800 mb-3">
+              No Cry Baby
+            </h1>
+            <p className="text-xl text-gray-600 mb-2">
+              Sistema de Geração Automática de Horários Escolares
+            </p>
+            <p className="text-gray-500">
+              Com otimização inteligente e respeito a todas as restrições
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Cards de Acesso Rápido */}

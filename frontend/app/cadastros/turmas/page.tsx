@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
+import { FaEdit, FaTrash } from 'react-icons/fa';
 
 interface Turma {
   id: number;
@@ -33,7 +34,11 @@ export default function TurmasPage() {
   const carregarTurmas = async () => {
     try {
       const response = await api.get('/turmas');
-      setTurmas(response.data);
+      // Ordenar alfabeticamente por nome
+      const turmasOrdenadas = response.data.sort((a: Turma, b: Turma) => 
+        a.nome.localeCompare(b.nome)
+      );
+      setTurmas(turmasOrdenadas);
     } catch (error) {
       console.error('Erro ao carregar turmas:', error);
     } finally {
@@ -108,113 +113,115 @@ export default function TurmasPage() {
         <h1 className="text-3xl font-bold text-gray-800">Turmas</h1>
         <button
           onClick={() => {
-            setShowForm(!showForm);
             setEditando(null);
             resetForm();
+            setShowForm(true);
           }}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
         >
-          {showForm ? 'Cancelar' : '+ Nova Turma'}
+          + Nova Turma
         </button>
       </div>
 
+      {/* Modal */}
       {showForm && (
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-4">
-            {editando ? 'Editar Turma' : 'Nova Turma'}
-          </h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nome *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.nome}
-                  onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ex: 1º Ano A"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ano/Série *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.ano_serie}
-                  onChange={(e) => setFormData({ ...formData, ano_serie: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ex: 1º Ano, 9º Ano"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Turno *
-                </label>
-                <select
-                  required
-                  value={formData.turno}
-                  onChange={(e) => setFormData({ ...formData, turno: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="MATUTINO">Matutino</option>
-                  <option value="VESPERTINO">Vespertino</option>
-                  <option value="NOTURNO">Noturno</option>
-                  <option value="INTEGRAL">Integral</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Número de Alunos
-                </label>
-                <input
-                  type="number"
-                  value={formData.numero_alunos}
-                  onChange={(e) => setFormData({ ...formData, numero_alunos: parseInt(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="flex items-center space-x-2">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-4">
+              {editando ? 'Editar Turma' : 'Nova Turma'}
+            </h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nome *
+                  </label>
                   <input
-                    type="checkbox"
-                    checked={formData.ativa}
-                    onChange={(e) => setFormData({ ...formData, ativa: e.target.checked })}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    type="text"
+                    required
+                    value={formData.nome}
+                    onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ex: 1A, 2B"
                   />
-                  <span className="text-sm font-medium text-gray-700">Ativa</span>
-                </label>
-              </div>
-            </div>
+                </div>
 
-            <div className="flex justify-end space-x-3 pt-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowForm(false);
-                  setEditando(null);
-                  resetForm();
-                }}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                {editando ? 'Atualizar' : 'Cadastrar'}
-              </button>
-            </div>
-          </form>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ano/Série *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.ano_serie}
+                    onChange={(e) => setFormData({ ...formData, ano_serie: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ex: 1º Ano - ADM"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Turno *
+                  </label>
+                  <select
+                    required
+                    value={formData.turno}
+                    onChange={(e) => setFormData({ ...formData, turno: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="MATUTINO">Manhã</option>
+                    <option value="VESPERTINO">Tarde</option>
+                    <option value="NOTURNO">Noite</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Número de Alunos
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.numero_alunos}
+                    onChange={(e) => setFormData({ ...formData, numero_alunos: parseInt(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.ativa}
+                      onChange={(e) => setFormData({ ...formData, ativa: e.target.checked })}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Ativa</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForm(false);
+                    setEditando(null);
+                    resetForm();
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  {editando ? 'Atualizar' : 'Cadastrar'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
@@ -252,7 +259,7 @@ export default function TurmasPage() {
                   {turma.ano_serie}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {turma.turno}
+                  {turma.turno === 'MATUTINO' ? 'Manhã' : turma.turno === 'VESPERTINO' ? 'Tarde' : turma.turno === 'NOTURNO' ? 'Noite' : turma.turno}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {turma.numero_alunos}
@@ -268,19 +275,25 @@ export default function TurmasPage() {
                     {turma.ativa ? 'Ativa' : 'Inativa'}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                  <button
-                    onClick={() => handleEdit(turma)}
-                    className="text-blue-600 hover:text-blue-900"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => handleDelete(turma.id)}
-                    className="text-red-600 hover:text-red-900"
-                  >
-                    Excluir
-                  </button>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleEdit(turma)}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+                      title="Editar turma"
+                    >
+                      <FaEdit className="text-sm" />
+                      <span>Editar</span>
+                    </button>
+                    <button
+                      onClick={() => handleDelete(turma.id)}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
+                      title="Excluir turma"
+                    >
+                      <FaTrash className="text-sm" />
+                      <span>Excluir</span>
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

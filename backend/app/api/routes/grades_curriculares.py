@@ -84,12 +84,26 @@ def criar_grade(grade: GradeCurricularCreate, db: Session = Depends(get_db)):
 
 @router.put("/{grade_id}", response_model=GradeCurricular)
 def atualizar_grade(grade_id: int, grade: GradeCurricularUpdate, db: Session = Depends(get_db)):
-    db_grade = db.query(GradeCurricularModel).filter(GradeCurricularModel.id == grade_id).first()
+    db_grade = db.query(GradeCurricularModel).options(
+        joinedload(GradeCurricularModel.turma),
+        joinedload(GradeCurricularModel.disciplina),
+        joinedload(GradeCurricularModel.professor)
+    ).filter(GradeCurricularModel.id == grade_id).first()
+    
     if not db_grade:
         raise HTTPException(status_code=404, detail="Grade curricular não encontrada")
     
-    for key, value in grade.model_dump(exclude_unset=True).items():
-        setattr(db_grade, key, value)
+    # Use exclude_unset=True mas trate None explicitamente para professor_id_2
+    update_data = grade.model_dump(exclude_unset=True)
+    
+    # Se professor_id_2 está presente no update (mesmo que seja None), atualizar
+    if 'professor_id_2' in update_data:
+        db_grade.professor_id_2 = update_data['professor_id_2']
+    
+    # Atualizar os outros campos
+    for key, value in update_data.items():
+        if key != 'professor_id_2':  # Já tratamos isso acima
+            setattr(db_grade, key, value)
     
     db.commit()
     db.refresh(db_grade)
@@ -97,6 +111,8 @@ def atualizar_grade(grade_id: int, grade: GradeCurricularUpdate, db: Session = D
     # Carregar professor_2 se existir
     if db_grade.professor_id_2:
         db_grade.professor_2 = db.query(Professor).filter(Professor.id == db_grade.professor_id_2).first()
+    else:
+        db_grade.professor_2 = None
     
     return db_grade
 

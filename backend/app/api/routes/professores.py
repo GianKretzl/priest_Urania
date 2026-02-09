@@ -11,7 +11,7 @@ router = APIRouter(prefix="/professores", tags=["professores"])
 
 @router.get("/", response_model=List[Professor])
 def listar_professores(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    professores = db.query(ProfessorModel).options(joinedload(ProfessorModel.disciplinas)).offset(skip).limit(limit).all()
+    professores = db.query(ProfessorModel).options(joinedload(ProfessorModel.disciplinas)).order_by(ProfessorModel.nome).offset(skip).limit(limit).all()
     return professores
 
 
