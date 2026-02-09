@@ -21,6 +21,11 @@ class DiaSemanaEnum(str, enum.Enum):
     SABADO = "SABADO"
 
 
+class TipoAulaEnum(str, enum.Enum):
+    AULA_NORMAL = "AULA_NORMAL"
+    HORA_ATIVIDADE = "HORA_ATIVIDADE"
+
+
 class Horario(Base):
     __tablename__ = "horarios"
     
@@ -50,11 +55,13 @@ class HorarioAula(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     horario_id = Column(Integer, ForeignKey("horarios.id"), nullable=False)
-    turma_id = Column(Integer, ForeignKey("turmas.id"), nullable=False)
-    disciplina_id = Column(Integer, ForeignKey("disciplinas.id"), nullable=False)
+    turma_id = Column(Integer, ForeignKey("turmas.id"), nullable=True)  # Nullable para horas atividade
+    disciplina_id = Column(Integer, ForeignKey("disciplinas.id"), nullable=True)  # Nullable para horas atividade
     professor_id = Column(Integer, ForeignKey("professores.id"), nullable=False)
-    ambiente_id = Column(Integer, ForeignKey("ambientes.id"), nullable=False)
+    professor_id_2 = Column(Integer, ForeignKey("professores.id"), nullable=True)  # Segundo professor (opcional)
+    ambiente_id = Column(Integer, ForeignKey("ambientes.id"), nullable=True)  # Nullable para horas atividade
     
+    tipo_aula = Column(Enum(TipoAulaEnum), default=TipoAulaEnum.AULA_NORMAL, nullable=False)
     dia_semana = Column(Enum(DiaSemanaEnum), nullable=False)
     horario_inicio = Column(String, nullable=False)  # Formato: "08:00"
     horario_fim = Column(String, nullable=False)  # Formato: "08:50"
@@ -64,5 +71,6 @@ class HorarioAula(Base):
     horario = relationship("Horario", back_populates="aulas")
     turma = relationship("Turma", back_populates="horarios_aula")
     disciplina = relationship("Disciplina", back_populates="horarios_aula")
-    professor = relationship("Professor", back_populates="horarios_aula")
+    professor = relationship("Professor", back_populates="horarios_aula", foreign_keys=[professor_id])
+    professor_2 = relationship("Professor", foreign_keys=[professor_id_2])
     ambiente = relationship("Ambiente", back_populates="horarios_aula")

@@ -42,6 +42,7 @@ class DisciplinaBase(BaseModel):
     duracao_aula: int = 50
     cor: str = "#3B82F6"
     ativa: bool = True
+    multiplos_professores: bool = False
 
 
 class DisciplinaCreate(DisciplinaBase):
@@ -54,6 +55,7 @@ class DisciplinaUpdate(BaseModel):
     duracao_aula: Optional[int] = None
     cor: Optional[str] = None
     ativa: Optional[bool] = None
+    multiplos_professores: Optional[bool] = None
 
 
 class Disciplina(DisciplinaBase):
@@ -196,6 +198,7 @@ class GradeCurricularBase(BaseModel):
     turma_id: int
     disciplina_id: int
     professor_id: int
+    professor_id_2: Optional[int] = None
     aulas_por_semana: int
     ativa: bool = True
 
@@ -208,6 +211,7 @@ class GradeCurricularUpdate(BaseModel):
     turma_id: Optional[int] = None
     disciplina_id: Optional[int] = None
     professor_id: Optional[int] = None
+    professor_id_2: Optional[int] = None
     aulas_por_semana: Optional[int] = None
     ativa: Optional[bool] = None
 
@@ -217,6 +221,7 @@ class GradeCurricular(GradeCurricularBase):
     turma: Optional[Turma] = None
     disciplina: Optional[Disciplina] = None
     professor: Optional[Professor] = None
+    professor_2: Optional[Professor] = None
     
     class Config:
         from_attributes = True
@@ -288,6 +293,7 @@ class HorarioAulaBase(BaseModel):
     turma_id: int
     disciplina_id: int
     professor_id: int
+    professor_id_2: Optional[int] = None
     ambiente_id: int
     dia_semana: DiaSemanaEnum
     horario_inicio: str

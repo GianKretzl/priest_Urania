@@ -124,7 +124,8 @@ class HorarioGenerator:
                 for slot in range(self.slots_por_dia):
                     vars_conflito = []
                     for grade in self.grades:
-                        if grade.professor_id == prof_id:
+                        # Verificar se o professor é o principal ou o segundo professor
+                        if grade.professor_id == prof_id or (hasattr(grade, 'professor_id_2') and grade.professor_id_2 == prof_id):
                             for aula_num in range(grade.aulas_por_semana):
                                 for ambiente in self.ambientes:
                                     var_name = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot}_amb{ambiente.id}"
@@ -384,18 +385,24 @@ class HorarioGenerator:
                 horario_inicio = self._calcular_horario(slot)
                 horario_fim = self._calcular_horario(slot, fim=True)
                 
-                # Criar aula
-                aula = HorarioAula(
-                    horario_id=self.horario_id,
-                    turma_id=grade.turma_id,
-                    disciplina_id=grade.disciplina_id,
-                    professor_id=grade.professor_id,
-                    ambiente_id=ambiente_id,
-                    dia_semana=self.dias_semana[dia_idx],
-                    horario_inicio=horario_inicio,
-                    horario_fim=horario_fim,
-                    ordem=slot + 1
-                )
+                # Criar aula (com suporte a segundo professor se aplicável)
+                aula_data = {
+                    'horario_id': self.horario_id,
+                    'turma_id': grade.turma_id,
+                    'disciplina_id': grade.disciplina_id,
+                    'professor_id': grade.professor_id,
+                    'ambiente_id': ambiente_id,
+                    'dia_semana': self.dias_semana[dia_idx],
+                    'horario_inicio': horario_inicio,
+                    'horario_fim': horario_fim,
+                    'ordem': slot + 1
+                }
+                
+                # Adicionar segundo professor se existir
+                if hasattr(grade, 'professor_id_2') and grade.professor_id_2:
+                    aula_data['professor_id_2'] = grade.professor_id_2
+                
+                aula = HorarioAula(**aula_data)
                 self.db.add(aula)
                 aulas_criadas += 1
         

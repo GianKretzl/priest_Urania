@@ -13,6 +13,7 @@ class Disciplina(Base):
     duracao_aula = Column(Integer, default=50)  # Duração em minutos
     cor = Column(String, default="#3B82F6")  # Cor para visualização
     ativa = Column(Boolean, default=True)
+    multiplos_professores = Column(Boolean, default=False)  # Se permite 2 professores simultaneamente
     
     # Relacionamentos
     professores = relationship("Professor", secondary=professor_disciplina, back_populates="disciplinas")

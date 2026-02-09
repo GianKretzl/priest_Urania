@@ -25,10 +25,12 @@ interface GradeCurricular {
   turma_id: number;
   disciplina_id: number;
   professor_id: number;
+  professor_id_2?: number;
   aulas_por_semana: number;
   turma: Turma;
   disciplina: Disciplina;
   professor: Professor;
+  professor_2?: Professor;
 }
 
 export default function GradesPage() {
@@ -38,13 +40,17 @@ export default function GradesPage() {
   const [professores, setProfessores] = useState<Professor[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showCopiarForm, setShowCopiarForm] = useState(false);
   const [editando, setEditando] = useState<GradeCurricular | null>(null);
   const [turmaSelecionada, setTurmaSelecionada] = useState<number | null>(null);
+  const [turmaOrigemCopia, setTurmaOrigemCopia] = useState<number>(0);
+  const [turmaDestinoCopia, setTurmaDestinoCopia] = useState<number>(0);
   
   const [formData, setFormData] = useState({
     turma_id: 0,
     disciplina_id: 0,
     professor_id: 0,
+    professor_id_2: 0,
     aulas_por_semana: 2,
     ativa: true,
   });
@@ -82,11 +88,25 @@ export default function GradesPage() {
     e.preventDefault();
     
     try {
+      // Preparar dados - se professor_id_2 for 0, enviar null
+      const dataToSend = {
+        turma_id: formData.turma_id,
+        disciplina_id: formData.disciplina_id,
+        professor_id: formData.professor_id,
+        professor_id_2: formData.professor_id_2 === 0 ? null : formData.professor_id_2,
+        aulas_por_semana: formData.aulas_por_semana,
+        ativa: formData.ativa,
+      };
+      
+      console.log('Enviando dados:', dataToSend);
+      
       if (editando) {
-        await api.put(`/grades-curriculares/${editando.id}`, formData);
+        const response = await api.put(`/grades-curriculares/${editando.id}`, dataToSend);
+        console.log('Resposta da atualização:', response.data);
         alert('Grade atualizada com sucesso!');
       } else {
-        await api.post('/grades-curriculares', formData);
+        const response = await api.post('/grades-curriculares', dataToSend);
+        console.log('Resposta da criação:', response.data);
         alert('Grade cadastrada com sucesso!');
       }
       
@@ -94,9 +114,10 @@ export default function GradesPage() {
       setEditando(null);
       resetForm();
       carregarDados();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao salvar grade:', error);
-      alert('Erro ao salvar grade');
+      console.error('Detalhes do erro:', error.response?.data);
+      alert(`Erro ao salvar grade: ${error.response?.data?.detail || error.message}`);
     }
   };
 
@@ -106,6 +127,7 @@ export default function GradesPage() {
       turma_id: grade.turma_id,
       disciplina_id: grade.disciplina_id,
       professor_id: grade.professor_id,
+      professor_id_2: grade.professor_id_2 || 0,
       aulas_por_semana: grade.aulas_por_semana,
       ativa: true,
     });
@@ -125,11 +147,48 @@ export default function GradesPage() {
     }
   };
 
+  const handleCopiarGrades = async () => {
+    if (turmaOrigemCopia === 0 || turmaDestinoCopia === 0) {
+      alert('Selecione as turmas de origem e destino');
+      return;
+    }
+
+    if (turmaOrigemCopia === turmaDestinoCopia) {
+      alert('As turmas de origem e destino devem ser diferentes');
+      return;
+    }
+
+    const turmaOrigem = turmas.find(t => t.id === turmaOrigemCopia);
+    const turmaDestino = turmas.find(t => t.id === turmaDestinoCopia);
+
+    if (!confirm(`Deseja copiar todas as grades de "${turmaOrigem?.nome}" para "${turmaDestino?.nome}"?\n\nIsso irá substituir as grades existentes em "${turmaDestino?.nome}".`)) {
+      return;
+    }
+
+    try {
+      const response = await api.post('/grades-curriculares/copiar', {
+        turma_origem_id: turmaOrigemCopia,
+        turma_destino_id: turmaDestinoCopia,
+        sobrescrever: true
+      });
+
+      alert(response.data.message);
+      setShowCopiarForm(false);
+      setTurmaOrigemCopia(0);
+      setTurmaDestinoCopia(0);
+      carregarDados();
+    } catch (error: any) {
+      console.error('Erro ao copiar grades:', error);
+      alert(error.response?.data?.detail || 'Erro ao copiar grades');
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       turma_id: turmaSelecionada || 0,
       disciplina_id: 0,
       professor_id: 0,
+      professor_id_2: 0,
       aulas_por_semana: 2,
       ativa: true,
     });
@@ -176,15 +235,23 @@ export default function GradesPage() {
               ))}
             </select>
           </div>
-          <button
-            onClick={() => {
-              resetForm();
-              setShowForm(true);
-            }}
-            className="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            + Nova Grade
-          </button>
+          <div className="ml-4 flex gap-2">
+            <button
+              onClick={() => setShowCopiarForm(true)}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              📋 Copiar Grades
+            </button>
+            <button
+              onClick={() => {
+                resetForm();
+                setShowForm(true);
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              + Nova Grade
+            </button>
+          </div>
         </div>
       </div>
 
@@ -255,6 +322,27 @@ export default function GradesPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Professor 2 (Opcional - para aulas com 2 professores)
+                </label>
+                <select
+                  value={formData.professor_id_2 || 0}
+                  onChange={(e) => setFormData({ ...formData, professor_id_2: Number(e.target.value) || undefined })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value={0}>Nenhum (aula com 1 professor)</option>
+                  {professores.filter(p => p.id !== formData.professor_id).map(prof => (
+                    <option key={prof.id} value={prof.id}>
+                      {prof.nome}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Use para disciplinas como Recomposição que precisam de 2 professores simultaneamente
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Aulas por Semana
                 </label>
                 <input
@@ -292,6 +380,84 @@ export default function GradesPage() {
         </div>
       )}
 
+      {/* Modal Copiar Grades */}
+      {showCopiarForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-2xl font-bold mb-4">
+              📋 Copiar Grades Curriculares
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Copie todas as grades de uma turma para outra. As grades existentes na turma de destino serão substituídas.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Turma de Origem (copiar de...)
+                </label>
+                <select
+                  value={turmaOrigemCopia}
+                  onChange={(e) => setTurmaOrigemCopia(Number(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                >
+                  <option value={0}>Selecione a turma de origem</option>
+                  {turmas.map(turma => (
+                    <option key={turma.id} value={turma.id}>
+                      {turma.nome} - {turma.ano_serie}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Turma de Destino (copiar para...)
+                </label>
+                <select
+                  value={turmaDestinoCopia}
+                  onChange={(e) => setTurmaDestinoCopia(Number(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                >
+                  <option value={0}>Selecione a turma de destino</option>
+                  {turmas.filter(t => t.id !== turmaOrigemCopia).map(turma => (
+                    <option key={turma.id} value={turma.id}>
+                      {turma.nome} - {turma.ano_serie}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <p className="text-sm text-yellow-800">
+                  ⚠️ <strong>Atenção:</strong> Esta ação irá substituir todas as grades existentes na turma de destino.
+                </p>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCopiarForm(false);
+                    setTurmaOrigemCopia(0);
+                    setTurmaDestinoCopia(0);
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleCopiarGrades}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  Copiar Grades
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabela */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
@@ -301,7 +467,7 @@ export default function GradesPage() {
                 Disciplina
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Professor
+                Professor(es)
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Aulas/Semana
@@ -334,6 +500,11 @@ export default function GradesPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {grade.professor?.nome || 'N/A'}
+                    {grade.professor_id_2 && grade.professor_2 && (
+                      <div className="text-xs text-blue-600 font-medium mt-1">
+                        + {grade.professor_2.nome}
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {grade.aulas_por_semana} aulas

@@ -11,6 +11,7 @@ class GradeCurricular(Base):
     turma_id = Column(Integer, ForeignKey("turmas.id"), nullable=False)
     disciplina_id = Column(Integer, ForeignKey("disciplinas.id"), nullable=False)
     professor_id = Column(Integer, ForeignKey("professores.id"), nullable=False)
+    professor_id_2 = Column(Integer, ForeignKey("professores.id"), nullable=True)  # Segundo professor (opcional)
     
     aulas_por_semana = Column(Integer, nullable=False)  # Quantas aulas dessa disciplina por semana
     ativa = Column(Boolean, default=True)
@@ -18,4 +19,5 @@ class GradeCurricular(Base):
     # Relacionamentos
     turma = relationship("Turma", back_populates="grades_curriculares")
     disciplina = relationship("Disciplina", back_populates="grades_curriculares")
-    professor = relationship("Professor", back_populates="grades_curriculares")
+    professor = relationship("Professor", back_populates="grades_curriculares", foreign_keys=[professor_id])
+    professor_2 = relationship("Professor", foreign_keys=[professor_id_2])

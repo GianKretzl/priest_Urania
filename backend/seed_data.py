@@ -2,14 +2,21 @@ from app.core.database import SessionLocal, engine, Base
 from app.models import (
     Disciplina, Turma, Professor, Sede, Ambiente, GradeCurricular, Horario
 )
+from app.models.horario import HorarioAula
+from app.models.disponibilidade import Disponibilidade
 
 def limpar_dados(db):
     """Limpa todos os dados existentes"""
+    db.query(HorarioAula).delete()
+    db.query(Disponibilidade).delete()
     db.query(GradeCurricular).delete()
     db.query(Horario).delete()
     db.query(Ambiente).delete()
     db.query(Sede).delete()
     db.query(Turma).delete()
+    # Limpar relacionamento many-to-many professor-disciplina
+    from app.models.professor_disciplina import professor_disciplina
+    db.execute(professor_disciplina.delete())
     db.query(Professor).delete()
     db.query(Disciplina).delete()
     db.commit()
@@ -83,7 +90,7 @@ def criar_disciplinas(db):
         "Arte", "Ciências", "Educação Física", "Geografia", "História",
         "Língua Inglesa", "Língua Portuguesa", "Matemática", 
         "Cidadania e Civismo", "Educação Financeira", "Programação e Robótica",
-        "Rec. língua portuguesa", "Rec matemática",
+        "Recomp. língua portuguesa", "Recomp matemática",
         
         # 1º ano
         "Biologia", "Química", "Programação e IA", "Estratégias de MkT",
@@ -116,12 +123,16 @@ def criar_disciplinas(db):
     
     disciplinas = {}
     for idx, nome in enumerate(disciplinas_nomes):
+        # Marcar disciplinas de recomposição como permitindo múltiplos professores
+        multiplos = "recomp" in nome.lower()
+        
         disciplina = Disciplina(
             nome=nome,
             carga_horaria_semanal=2,  # Padrão, será ajustado nas grades
             duracao_aula=50,
             cor=cores[idx % len(cores)],
-            ativa=True
+            ativa=True,
+            multiplos_professores=multiplos
         )
         db.add(disciplina)
         disciplinas[nome] = disciplina
@@ -169,7 +180,9 @@ def criar_turmas(db):
 def criar_grades_curriculares(db, professores, disciplinas, turmas):
     """Cria as grades curriculares e atribui professores às disciplinas"""
     
-    # Estrutura: turma -> [(disciplina, aulas, professor), ...]
+    # Estrutura: turma -> [(disciplina, aulas, professor1, professor2_opcional), ...]
+    # Se tiver apenas 3 elementos na tupla, o último é o professor único
+    # Se tiver 4 elementos, os 2 últimos são os 2 professores
     grades_data = {
         # 9 anos (A, B, C, D) - mesma grade
         "9A": [
@@ -184,9 +197,8 @@ def criar_grades_curriculares(db, professores, disciplinas, turmas):
             ("Cidadania e Civismo", 1, "Fernanda"),
             ("Educação Financeira", 2, "Diomar"),
             ("Programação e Robótica", 2, "Gian"),
-            ("Rec. língua portuguesa", 2, "Márcia Regina"),
-            ("Rec matemática", 2, "Mayhara"),
-            ("Rec matemática", 2, "Alvaro"),  # 2 professores mesmo horário
+            ("Recomp. língua portuguesa", 2, "Márcia Regina", "Renata"),  # 2 professores!
+            ("Recomp matemática", 2, "Mayhara", "Alvaro"),  # 2 professores!
         ],
         "1A": [
             ("Arte", 2, "Andreza"),
@@ -272,8 +284,8 @@ def criar_grades_curriculares(db, professores, disciplinas, turmas):
             ("Cidadania e Civismo", 1, "Edelvan"),
             ("Educação Financeira", 2, "Mayhara"),
             ("Projeto de vida", 1, "Edelvan"),
-            ("Rec. língua portuguesa", 2, "Mirele"),
-            ("Rec matemática", 2, "Mayhara"),
+            ("Recomp. língua portuguesa", 2, "Mirele", "Márcia Regina"),  # 2 professores!
+            ("Recomp matemática", 2, "Mayhara", "Paola"),  # 2 professores!
             ("Arte II", 2, "Marly"),
             ("Geografia I", 2, "Edelvan"),
             ("História I", 2, "Rosane"),
@@ -288,8 +300,8 @@ def criar_grades_curriculares(db, professores, disciplinas, turmas):
             ("Cidadania e Civismo", 1, "Edelvan"),
             ("Educação Financeira", 2, "Paola"),
             ("Projeto de vida", 1, "Edelvan"),
-            ("Rec. língua portuguesa", 2, "Mirele"),
-            ("Rec matemática", 2, "Mayhara"),
+            ("Recomp. língua portuguesa", 2, "Mirele", "Márcia Regina"),  # 2 professores!
+            ("Recomp matemática", 2, "Mayhara", "Paola"),  # 2 professores!
             ("Biologia II", 2, "Carolina"),
             ("Física II", 2, "Alvaro"),
             ("Física III", 2, "Alvaro"),
@@ -305,10 +317,22 @@ def criar_grades_curriculares(db, professores, disciplinas, turmas):
     # Calcular carga horária de cada professor
     carga_professores = {}
     for turma_codigo, materias in grades_data.items():
-        for disciplina_nome, aulas, professor_nome in materias:
+        for item in materias:
+            disciplina_nome = item[0]
+            aulas = item[1]
+            professor_nome = item[2]
+            professor_nome_2 = item[3] if len(item) == 4 else None
+            
+            # Contar para o primeiro professor
             if professor_nome not in carga_professores:
                 carga_professores[professor_nome] = 0
             carga_professores[professor_nome] += aulas
+            
+            # Contar para o segundo professor se existir
+            if professor_nome_2:
+                if professor_nome_2 not in carga_professores:
+                    carga_professores[professor_nome_2] = 0
+                carga_professores[professor_nome_2] += aulas
     
     # Atualizar carga horária dos professores
     for professor_nome, total_aulas in carga_professores.items():
@@ -317,25 +341,46 @@ def criar_grades_curriculares(db, professores, disciplinas, turmas):
     
     # Atribuir disciplinas aos professores (relação muitos-para-muitos)
     for turma_codigo, materias in grades_data.items():
-        for disciplina_nome, aulas, professor_nome in materias:
+        for item in materias:
+            disciplina_nome = item[0]
+            professor_nome = item[2]
+            professor_nome_2 = item[3] if len(item) == 4 else None
+            
             prof = professores[professor_nome]
             disc = disciplinas[disciplina_nome]
             
             # Adicionar disciplina ao professor se ainda não está
             if disc not in prof.disciplinas:
                 prof.disciplinas.append(disc)
+            
+            # Adicionar para o segundo professor se existir
+            if professor_nome_2:
+                prof2 = professores[professor_nome_2]
+                if disc not in prof2.disciplinas:
+                    prof2.disciplinas.append(disc)
     db.commit()
     
     # Criar grades curriculares
     for turma_codigo, materias in grades_data.items():
         turma = turmas[turma_codigo]
-        for disciplina_nome, aulas, professor_nome in materias:
-            grade = GradeCurricular(
-                turma_id=turma.id,
-                disciplina_id=disciplinas[disciplina_nome].id,
-                professor_id=professores[professor_nome].id,
-                aulas_por_semana=aulas
-            )
+        for item in materias:
+            disciplina_nome = item[0]
+            aulas = item[1]
+            professor_nome = item[2]
+            professor_nome_2 = item[3] if len(item) == 4 else None
+            
+            grade_data = {
+                'turma_id': turma.id,
+                'disciplina_id': disciplinas[disciplina_nome].id,
+                'professor_id': professores[professor_nome].id,
+                'aulas_por_semana': aulas
+            }
+            
+            # Adicionar segundo professor se existir
+            if professor_nome_2:
+                grade_data['professor_id_2'] = professores[professor_nome_2].id
+            
+            grade = GradeCurricular(**grade_data)
             db.add(grade)
     
     db.commit()

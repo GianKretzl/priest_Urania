@@ -28,6 +28,6 @@ class Professor(Base):
     
     # Relacionamentos
     disciplinas = relationship("Disciplina", secondary=professor_disciplina, back_populates="professores")
-    grades_curriculares = relationship("GradeCurricular", back_populates="professor")
+    grades_curriculares = relationship("GradeCurricular", back_populates="professor", foreign_keys="GradeCurricular.professor_id")
     disponibilidades = relationship("Disponibilidade", back_populates="professor")
-    horarios_aula = relationship("HorarioAula", back_populates="professor")
+    horarios_aula = relationship("HorarioAula", back_populates="professor", foreign_keys="HorarioAula.professor_id")
