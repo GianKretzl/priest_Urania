@@ -17,6 +17,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 600000, // 10 minutos em milissegundos
 });
 
 // Interceptor para tratamento de erros
@@ -96,7 +97,7 @@ export interface GradeCurricular {
 export interface Disponibilidade {
   id: number;
   professor_id: number;
-  dia_semana: 'SEGUNDA' | 'TERCA' | 'QUARTA' | 'QUINTA' | 'SEXTA' | 'SABADO';
+  dia_semana: 'SEGUNDA' | 'TERCA' | 'QUARTA' | 'QUINTA' | 'SEXTA';
   horario_inicio: string;
   horario_fim: string;
   disponivel: boolean;
@@ -114,6 +115,7 @@ export interface Horario {
   aulas_alocadas: number;
   pendencias: any[];
   qualidade_score: number;
+  tem_conflitos: boolean;
 }
 
 export interface HorarioAula {
@@ -123,7 +125,7 @@ export interface HorarioAula {
   disciplina_id: number;
   professor_id: number;
   ambiente_id: number;
-  dia_semana: 'SEGUNDA' | 'TERCA' | 'QUARTA' | 'QUINTA' | 'SEXTA' | 'SABADO';
+  dia_semana: 'SEGUNDA' | 'TERCA' | 'QUARTA' | 'QUINTA' | 'SEXTA';
   horario_inicio: string;
   horario_fim: string;
   ordem: number;

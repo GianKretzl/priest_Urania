@@ -22,14 +22,13 @@ interface Disponibilidade {
   dia_nao_trabalha: boolean;
 }
 
-const DIAS_SEMANA = ['SEGUNDA', 'TERCA', 'QUARTA', 'QUINTA', 'SEXTA', 'SABADO'];
+const DIAS_SEMANA = ['SEGUNDA', 'TERCA', 'QUARTA', 'QUINTA', 'SEXTA'];
 const DIAS_LABEL = {
   SEGUNDA: 'Segunda',
   TERCA: 'Terça',
   QUARTA: 'Quarta',
   QUINTA: 'Quinta',
-  SEXTA: 'Sexta',
-  SABADO: 'Sábado'
+  SEXTA: 'Sexta'
 };
 
 const TURNOS = {

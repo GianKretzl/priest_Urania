@@ -89,7 +89,12 @@ def atualizar_horario(horario_id: int, horario: HorarioUpdate, db: Session = Dep
 
 
 @router.post("/{horario_id}/gerar", response_model=GerarHorarioResponse)
-def gerar_horario(horario_id: int, request: GerarHorarioRequest, db: Session = Depends(get_db)):
+def gerar_horario(
+    horario_id: int, 
+    request: GerarHorarioRequest, 
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
     """
     Endpoint principal para gerar o horário usando o motor de otimização.
     """
@@ -98,33 +103,38 @@ def gerar_horario(horario_id: int, request: GerarHorarioRequest, db: Session = D
     if not horario:
         raise HTTPException(status_code=404, detail="Horário não encontrado")
     
+    # Se já está em progresso, retornar status atual
+    if horario.status == "EM_PROGRESSO":
+        return GerarHorarioResponse(
+            success=False,
+            message="Geração já em andamento",
+            horario_id=horario_id,
+            total_aulas=horario.total_aulas,
+            aulas_alocadas=horario.aulas_alocadas,
+            pendencias=horario.pendencias,
+            qualidade_score=horario.qualidade_score,
+            tempo_geracao=0
+        )
+    
     # Atualizar status
     horario.status = "EM_PROGRESSO"
     db.commit()
     
-    try:
-        # Criar gerador com filtro de turno se especificado
-        generator = HorarioGenerator(db, horario_id, turno=request.turno)
-        
-        # Gerar horário
-        resultado = generator.gerar(tempo_maximo=request.tempo_maximo_geracao)
-        
-        return GerarHorarioResponse(
-            success=resultado["success"],
-            message=resultado["message"],
-            horario_id=horario_id,
-            total_aulas=resultado.get("total_aulas", 0),
-            aulas_alocadas=resultado.get("aulas_alocadas", 0),
-            pendencias=resultado.get("pendencias", []),
-            qualidade_score=resultado.get("qualidade_score", 0),
-            tempo_geracao=resultado.get("tempo_geracao", 0)
-        )
+    # Adicionar tarefa em background
+    background_tasks.add_task(gerar_horario_background, horario_id, request, db)
     
-    except Exception as e:
-        # Reverter status em caso de erro
-        horario.status = "RASCUNHO"
-        db.commit()
-        raise HTTPException(status_code=500, detail=f"Erro ao gerar horário: {str(e)}")
+    # Retornar resposta imediata
+    return GerarHorarioResponse(
+        success=True,
+        message="Geração iniciada em background",
+        horario_id=horario_id,
+        total_aulas=0,
+        aulas_alocadas=0,
+        pendencias=[],
+        qualidade_score=0,
+        tempo_geracao=0,
+        tempo_maximo=request.tempo_maximo_geracao
+    )
 
 
 @router.delete("/{horario_id}")
@@ -345,3 +355,30 @@ def exportar_horario_professor_csv(horario_id: int, professor_id: int, db: Sessi
     csv_content = exporter.to_csv_professor(professor_id)
     
     return PlainTextResponse(content=csv_content, media_type="text/csv")
+
+
+def gerar_horario_background(horario_id: int, request: GerarHorarioRequest, db: Session):
+    """
+    Função executada em background para gerar o horário
+    """
+    try:
+        print(f"Iniciando geração em background para horário {horario_id}")
+        
+        # Criar gerador com filtro de turno se especificado
+        generator = HorarioGenerator(db, horario_id, turno=request.turno)
+        
+        # Gerar horário
+        resultado = generator.gerar(tempo_maximo=request.tempo_maximo_geracao)
+        
+        print(f"Geração concluída para horário {horario_id}: {resultado}")
+        
+        # O resultado já foi salvo no banco pelo generator
+        
+    except Exception as e:
+        print(f"Erro na geração em background para horário {horario_id}: {str(e)}")
+        # Em caso de erro, atualizar status
+        horario = db.query(HorarioModel).filter(HorarioModel.id == horario_id).first()
+        if horario:
+            horario.status = "RASCUNHO"
+            db.commit()
+        print(f"Status do horário {horario_id} revertido para RASCUNHO devido a erro")

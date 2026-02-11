@@ -13,7 +13,7 @@ class HorarioExporter:
     def __init__(self, horario_data: Dict, aulas: List[Dict]):
         self.horario_data = horario_data
         self.aulas = aulas
-        self.dias_semana = ["SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA", "SABADO"]
+        self.dias_semana = ["SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA"]
     
     def to_html_turma(self, turma_id: int, turma_nome: str) -> str:
         """Exporta horário de uma turma para HTML"""
@@ -366,7 +366,6 @@ class HorarioExporter:
             'TERCA': 'Terça-feira',
             'QUARTA': 'Quarta-feira',
             'QUINTA': 'Quinta-feira',
-            'SEXTA': 'Sexta-feira',
-            'SABADO': 'Sábado'
+            'SEXTA': 'Sexta-feira'
         }
         return dias.get(dia, dia)

@@ -20,7 +20,11 @@ class HorarioGenerator:
     def __init__(self, db: Session, horario_id: int, turno: str = None):
         self.db = db
         self.horario_id = horario_id
-        self.turno_filtro = turno  # Turno específico para gerar (None = todos)
+        # Aceita enums ou strings
+        if hasattr(turno, 'value'):
+            self.turno_filtro = turno.value
+        else:
+            self.turno_filtro = turno  # Turno específico para gerar (None = todos)
         self.horario = db.query(Horario).filter(Horario.id == horario_id).first()
         
         if not self.horario:
@@ -125,11 +129,17 @@ class HorarioGenerator:
                 num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
                 
                 for hora_num in range(num_slots_atividade):
-                    for dia_idx, dia in enumerate(self.dias_semana):
-                        for slot in range(self.slots_por_dia):
-                            # Variável booleana: hora atividade está alocada neste dia/slot?
-                            var_name = f"ha_p{prof_id}_h{hora_num}_d{dia_idx}_s{slot}"
-                            self.variaveis_horas_atividade[var_name] = self.model.NewBoolVar(var_name)
+                    # Criar variáveis por turno para permitir alocação em contraturno
+                    for turno in ["MATUTINO", "VESPERTINO", "NOTURNO"]:
+                        for dia_idx, dia in enumerate(self.dias_semana):
+                            for slot in range(self.slots_por_dia):
+                                # Variável booleana: hora atividade está alocada neste turno/dia/slot
+                                var_name = f"ha_p{prof_id}_h{hora_num}_t{turno}_d{dia_idx}_s{slot}"
+                                self.variaveis_horas_atividade[var_name] = self.model.NewBoolVar(var_name)
+
+                    # Variável especial indicando que a hora-atividade não pôde ser alocada
+                    unalloc_name = f"ha_p{prof_id}_h{hora_num}_unallocated"
+                    self.variaveis_horas_atividade[unalloc_name] = self.model.NewBoolVar(unalloc_name)
     
     def adicionar_restricoes(self):
         """Adiciona todas as restrições ao modelo"""
@@ -187,9 +197,16 @@ class HorarioGenerator:
                         duracao_slot_horas = self.duracao_aula / 60.0
                         num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
                         for hora_num in range(num_slots_atividade):
-                            var_name = f"ha_p{prof_id}_h{hora_num}_d{dia_idx}_s{slot}"
-                            if var_name in self.variaveis_horas_atividade:
-                                vars_conflito.append(self.variaveis_horas_atividade[var_name])
+                            # Coletar todas as variantes (por turno) para o mesmo dia/slot
+                            for turno in ["MATUTINO", "VESPERTINO", "NOTURNO"]:
+                                var_name = f"ha_p{prof_id}_h{hora_num}_t{turno}_d{dia_idx}_s{slot}"
+                                if var_name in self.variaveis_horas_atividade:
+                                    vars_conflito.append(self.variaveis_horas_atividade[var_name])
+                            # também considerar a opção unallocated (não ocupa horário)
+                            unalloc_name = f"ha_p{prof_id}_h{hora_num}_unallocated"
+                            if unalloc_name in self.variaveis_horas_atividade:
+                                # unallocated não conflita com horário (não representa um slot)
+                                pass
                     
                     if vars_conflito:
                         self.model.Add(sum(vars_conflito) <= 1)
@@ -208,20 +225,17 @@ class HorarioGenerator:
                     if vars_conflito:
                         self.model.Add(sum(vars_conflito) <= 1)
         
-        # 5. Cada hora atividade deve ser alocada exatamente uma vez
+        # 5. Cada hora atividade deve ser alocada exatamente uma vez (inclui opção unallocated)
         for prof_id, professor in self.professores.items():
             if professor.horas_atividade > 0:
                 duracao_slot_horas = self.duracao_aula / 60.0
                 num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
                 for hora_num in range(num_slots_atividade):
-                    vars_hora_atividade = []
-                    for dia_idx in range(len(self.dias_semana)):
-                        for slot in range(self.slots_por_dia):
-                            var_name = f"ha_p{prof_id}_h{hora_num}_d{dia_idx}_s{slot}"
-                            if var_name in self.variaveis_horas_atividade:
-                                vars_hora_atividade.append(self.variaveis_horas_atividade[var_name])
-                    
+                    # Coletar todas as variáveis relativas a esta hora-atividade (qualquer turno + unallocated)
+                    vars_hora_atividade = [v for name, v in self.variaveis_horas_atividade.items()
+                                          if name.startswith(f"ha_p{prof_id}_h{hora_num}_")]
                     if vars_hora_atividade:
+                        # Deve ser alocada exatamente uma opção (turno/slot) ou marcada como unallocated
                         self.model.Add(sum(vars_hora_atividade) == 1)
         
         # 6. Respeitar disponibilidade dos professores
@@ -364,25 +378,33 @@ class HorarioGenerator:
                         # Simplificado: somar penalidades
                         penalidades.append(janela_var)
         
-        # 2. Priorizar alocação de horas atividade em contraturno
-        if self.turno_filtro:
-            for prof_id, professor in self.professores.items():
-                if professor.horas_atividade > 0:
-                    duracao_slot_horas = self.duracao_aula / 60.0
-                    num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
-                    
-                    for hora_num in range(num_slots_atividade):
+        # 2. Priorizar alocação de horas atividade em contraturno e penalizar não alocadas
+        for prof_id, professor in self.professores.items():
+            if professor.horas_atividade > 0:
+                duracao_slot_horas = self.duracao_aula / 60.0
+                num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
+
+                for hora_num in range(num_slots_atividade):
+                    # Penalidade pesada para opção "unallocated" (desincentivar deixar sem horário)
+                    unalloc_name = f"ha_p{prof_id}_h{hora_num}_unallocated"
+                    if unalloc_name in self.variaveis_horas_atividade:
+                        pen_unalloc = self.model.NewBoolVar(f"pen_{unalloc_name}")
+                        self.model.Add(pen_unalloc == self.variaveis_horas_atividade[unalloc_name])
+                        # Peso alto para forçar alocação quando possível
+                        for _ in range(50):
+                            penalidades.append(pen_unalloc)
+
+                    # Se gerando para um turno específico, penalizar alocações de horas-atividade nesse mesmo turno
+                    if self.turno_filtro:
                         for dia_idx in range(len(self.dias_semana)):
                             for slot in range(self.slots_por_dia):
-                                var_name = f"ha_p{prof_id}_h{hora_num}_d{dia_idx}_s{slot}"
+                                var_name = f"ha_p{prof_id}_h{hora_num}_t{self.turno_filtro}_d{dia_idx}_s{slot}"
                                 if var_name in self.variaveis_horas_atividade:
-                                    # Penalizar alocação de hora atividade no turno principal
-                                    # Peso maior = mais penalidade = menos preferência
-                                    penalidade_turno = self.model.NewBoolVar(f"pen_{var_name}")
-                                    self.model.Add(penalidade_turno == self.variaveis_horas_atividade[var_name])
-                                    # Peso 5 para horas atividade no turno principal (desincentivar)
+                                    pen = self.model.NewBoolVar(f"pen_{var_name}")
+                                    self.model.Add(pen == self.variaveis_horas_atividade[var_name])
+                                    # Penalidade moderada para desencorajar horas-atividade no turno principal
                                     for _ in range(5):
-                                        penalidades.append(penalidade_turno)
+                                        penalidades.append(pen)
         
         # Minimizar penalidades
         if penalidades:
@@ -449,67 +471,63 @@ class HorarioGenerator:
         
         # Extrair e salvar horas atividade dos professores
         for var_name, var in self.variaveis_horas_atividade.items():
-            if self.solver.Value(var) == 1:
-                # Parse do nome da variável
-                # Formato: ha_p{prof_id}_h{hora_num}_d{dia_idx}_s{slot}
+            if self.solver.Value(var) != 1:
+                continue
+
+            # Se a variável indica não alocada
+            if var_name.endswith("_unallocated"):
+                # Ex: ha_p{prof_id}_h{hora_num}_unallocated
                 parts = var_name.split('_')
                 prof_id = int(parts[1][1:])
-                dia_idx = int(parts[3][1:])
-                slot = int(parts[4][1:])
-                
+                hora_num = int(parts[2][1:])
                 professor = self.professores.get(prof_id)
                 if not professor:
                     continue
-                
-                # Determinar o turno da hora atividade
-                # Se o professor tem turmas em algum turno, usar o turno oposto se possível
-                turno_ha = "VESPERTINO"  # Padrão: tarde
-                
-                # Se filtro de turno está ativo, alocar contraturno
-                if self.turno_filtro:
-                    if self.turno_filtro == "MATUTINO":
-                        turno_ha = "VESPERTINO"
-                    elif self.turno_filtro == "VESPERTINO":
-                        turno_ha = "MATUTINO"
-                    else:  # NOTURNO
-                        turno_ha = "VESPERTINO"
-                else:
-                    # Sem filtro, tentar identificar turno predominante do professor
-                    turnos_professor = set()
-                    for grade in self.grades:
-                        if grade.professor_id == prof_id:
-                            turma = self.turmas.get(grade.turma_id)
-                            if turma:
-                                turnos_professor.add(turma.turno)
-                    
-                    # Se professor trabalha só manhã, hora atividade na tarde
-                    if turnos_professor == {"MATUTINO"}:
-                        turno_ha = "VESPERTINO"
-                    # Se só tarde, hora atividade na manhã
-                    elif turnos_professor == {"VESPERTINO"}:
-                        turno_ha = "MATUTINO"
-                    # Se trabalha em múltiplos turnos ou noturno, usar tarde como padrão
-                    else:
-                        turno_ha = "VESPERTINO"
-                
-                # Calcular horário usando o turno determinado
-                horario_inicio = self._calcular_horario(slot, turno_ha)
-                horario_fim = self._calcular_horario(slot, turno_ha, fim=True)
-                
-                # Criar entrada de hora atividade (como aula especial sem turma)
-                aula_ha = HorarioAula(
-                    horario_id=self.horario_id,
-                    turma_id=None,  # Hora atividade não tem turma
-                    disciplina_id=None,  # Hora atividade não tem disciplina
-                    professor_id=prof_id,
-                    ambiente_id=None,  # Hora atividade não precisa de ambiente específico
-                    dia_semana=self.dias_semana[dia_idx],
-                    horario_inicio=horario_inicio,
-                    horario_fim=horario_fim,
-                    ordem=slot + 1,
-                    tipo_aula="HORA_ATIVIDADE"  # Marcar como hora atividade
-                )
-                self.db.add(aula_ha)
+                # Registrar pendência para hora-atividade não alocada
+                self.pendencias.append({
+                    "tipo": "HORA_ATIVIDADE_NAO_ALOCADA",
+                    "severidade": "MEDIA",
+                    "mensagem": f"Hora-atividade do professor {professor.nome} (slot {hora_num}) não pôde ser alocada",
+                    "professor_id": prof_id
+                })
+                continue
+
+            # Formato esperado: ha_p{prof_id}_h{hora_num}_t{TURN}_d{dia_idx}_s{slot}
+            parts = var_name.split('_')
+            try:
+                prof_id = int(parts[1][1:])
+                hora_num = int(parts[2][1:])
+                turno_part = parts[3]
+                # turno_part == 't{TURN}'
+                turno_ha = turno_part[1:]
+                dia_idx = int(parts[4][1:])
+                slot = int(parts[5][1:])
+            except Exception:
+                # Nome inesperado, pular
+                continue
+
+            professor = self.professores.get(prof_id)
+            if not professor:
+                continue
+
+            # Calcular horário usando o turno determinado na variável
+            horario_inicio = self._calcular_horario(slot, turno_ha)
+            horario_fim = self._calcular_horario(slot, turno_ha, fim=True)
+
+            # Criar entrada de hora atividade (como aula especial sem turma)
+            aula_ha = HorarioAula(
+                horario_id=self.horario_id,
+                turma_id=None,  # Hora atividade não tem turma
+                disciplina_id=None,  # Hora atividade não tem disciplina
+                professor_id=prof_id,
+                ambiente_id=None,  # Hora atividade não precisa de ambiente específico
+                dia_semana=self.dias_semana[dia_idx],
+                horario_inicio=horario_inicio,
+                horario_fim=horario_fim,
+                ordem=slot + 1,
+                tipo_aula="HORA_ATIVIDADE"  # Marcar como hora atividade
+            )
+            self.db.add(aula_ha)
         
         # Atualizar estatísticas do horário
         total_aulas = sum(g.aulas_por_semana for g in self.grades)
@@ -517,6 +535,7 @@ class HorarioGenerator:
         self.horario.aulas_alocadas = aulas_criadas
         self.horario.status = "FINALIZADO" if aulas_criadas == total_aulas else "EM_PROGRESSO"
         self.horario.qualidade_score = self._calcular_qualidade()
+        self.horario.tem_conflitos = self._detectar_conflitos()
         
         self.db.commit()
         
@@ -712,6 +731,50 @@ class HorarioGenerator:
         # Futuramente pode considerar preferências de horário dos professores
         return 10
     
+    def _detectar_conflitos(self) -> bool:
+        """Detecta conflitos de professores no horário gerado"""
+        # Buscar todas as aulas do horário com join na disciplina
+        aulas = self.db.query(HorarioAula).join(
+            HorarioAula.disciplina
+        ).filter(
+            HorarioAula.horario_id == self.horario_id
+        ).all()
+        
+        # Agrupar aulas por dia, horário e ambiente
+        conflitos_por_slot = {}
+        
+        for aula in aulas:
+            chave = (aula.dia_semana, aula.horario_inicio, aula.ambiente_id)
+            if chave not in conflitos_por_slot:
+                conflitos_por_slot[chave] = []
+            conflitos_por_slot[chave].append(aula)
+        
+        # Verificar conflitos
+        for chave, aulas_no_slot in conflitos_por_slot.items():
+            professores_no_slot = set()
+            
+            for aula in aulas_no_slot:
+                # Verificar se é aula de recomposição (disciplina com "recomposição" no nome)
+                is_recomposicao = False
+                if aula.disciplina and aula.disciplina.nome:
+                    nome_disciplina = aula.disciplina.nome.lower()
+                    if 'recomposição' in nome_disciplina:
+                        is_recomposicao = True
+                
+                # Se não é recomposição, verificar conflito de professores
+                if not is_recomposicao:
+                    if aula.professor_id in professores_no_slot:
+                        return True  # Conflito encontrado
+                    professores_no_slot.add(aula.professor_id)
+                    
+                    # Verificar segundo professor também
+                    if aula.professor_id_2:
+                        if aula.professor_id_2 in professores_no_slot:
+                            return True
+                        professores_no_slot.add(aula.professor_id_2)
+        
+        return False  # Nenhum conflito encontrado
+    
     def refinar_solucao(self):
         """Fase de refinamento para melhorar a qualidade pedagógica do horário"""
         if self.horario.aulas_alocadas == 0:
@@ -779,6 +842,7 @@ class HorarioGenerator:
                     "aulas_alocadas": aulas_criadas,
                     "qualidade_score": self.horario.qualidade_score,
                     "tempo_geracao": tempo_decorrido,
+                    "tempo_maximo": tempo_maximo,
                     "pendencias": self.pendencias
                 }
             else:
@@ -804,6 +868,7 @@ class HorarioGenerator:
                     "aulas_alocadas": 0,
                     "qualidade_score": 0,
                     "tempo_geracao": tempo_decorrido,
+                    "tempo_maximo": tempo_maximo,
                     "pendencias": self.pendencias
                 }
                 
@@ -811,5 +876,6 @@ class HorarioGenerator:
             return {
                 "success": False,
                 "message": f"Erro ao gerar horário: {str(e)}",
-                "tempo_geracao": 0
+                "tempo_geracao": 0,
+                "tempo_maximo": tempo_maximo
             }

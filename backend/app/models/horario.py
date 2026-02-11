@@ -18,7 +18,6 @@ class DiaSemanaEnum(str, enum.Enum):
     QUARTA = "QUARTA"
     QUINTA = "QUINTA"
     SEXTA = "SEXTA"
-    SABADO = "SABADO"
 
 
 class TipoAulaEnum(str, enum.Enum):
@@ -44,6 +43,7 @@ class Horario(Base):
     aulas_alocadas = Column(Integer, default=0)
     pendencias = Column(JSON, default=[])  # Lista de pendências encontradas
     qualidade_score = Column(Integer, default=0)  # Score de 0-100
+    tem_conflitos = Column(Boolean, default=False)  # Indica se há conflitos de professores
     
     # Relacionamentos
     aulas = relationship("HorarioAula", back_populates="horario")

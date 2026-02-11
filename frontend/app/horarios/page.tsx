@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FaPlus, FaEye, FaPlay, FaTrash, FaClock, FaCheckCircle } from 'react-icons/fa';
+import { FaPlus, FaEye, FaPlay, FaTrash, FaClock, FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
 import { horarioService, Horario, HorarioCreate } from '@/lib/api';
 
 export default function HorariosPage() {
   const [horarios, setHorarios] = useState<Horario[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [showGerarModal, setShowGerarModal] = useState(false);
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [progressTime, setProgressTime] = useState(0);
   const [horarioToGenerate, setHorarioToGenerate] = useState<number | null>(null);
   const [turnoGerar, setTurnoGerar] = useState<'MATUTINO' | 'VESPERTINO' | 'NOTURNO' | ''>('');
   const [formData, setFormData] = useState<HorarioCreate>({
@@ -58,9 +60,17 @@ export default function HorariosPage() {
     if (!horarioToGenerate) return;
 
     setShowGerarModal(false);
+    setShowProgressModal(true);
+    setProgressTime(0);
+
+    // Iniciar timer
+    const timer = setInterval(() => {
+      setProgressTime(prev => prev + 1);
+    }, 1000);
 
     try {
-      const response = await horarioService.gerar(horarioToGenerate, {
+      // Iniciar geração em background
+      await horarioService.gerar(horarioToGenerate, {
         horario_id: horarioToGenerate,
         turno: turnoGerar || null,
         limitar_janelas: true,
@@ -69,19 +79,54 @@ export default function HorariosPage() {
         tempo_maximo_geracao: 300,
       });
 
-      const data = response.data;
-      if (data.success) {
-        alert(`Horário gerado com sucesso!\n\nAulas alocadas: ${data.aulas_alocadas}/${data.total_aulas}\nQualidade: ${data.qualidade_score}%\nTempo: ${data.tempo_geracao.toFixed(2)}s`);
-        await carregarHorarios();
-      } else {
-        alert(`Erro ao gerar horário: ${data.message}`);
-      }
+      // Polling para verificar status
+      const pollStatus = async () => {
+        try {
+          const response = await horarioService.getById(horarioToGenerate);
+          const horario = response.data;
+
+          if (horario.status === 'FINALIZADO' || horario.status === 'APROVADO') {
+            clearInterval(timer);
+            alert(`Horário gerado com sucesso!\n\nAulas alocadas: ${horario.aulas_alocadas}/${horario.total_aulas}\nQualidade: ${horario.qualidade_score}%\nConflitos: ${horario.tem_conflitos ? 'Sim' : 'Não'}`);
+            await carregarHorarios();
+            setShowProgressModal(false);
+            setHorarioToGenerate(null);
+            setTurnoGerar('');
+            setProgressTime(0);
+          } else if (horario.status === 'RASCUNHO') {
+            // Erro na geração
+            clearInterval(timer);
+            alert('Erro ao gerar horário');
+            setShowProgressModal(false);
+            setHorarioToGenerate(null);
+            setTurnoGerar('');
+            setProgressTime(0);
+          } else {
+            // Ainda em progresso, continuar polling
+            setTimeout(pollStatus, 5000);
+          }
+        } catch (error) {
+          clearInterval(timer);
+          console.error('Erro ao verificar status:', error);
+          alert('Erro ao verificar status da geração');
+          setShowProgressModal(false);
+          setHorarioToGenerate(null);
+          setTurnoGerar('');
+          setProgressTime(0);
+        }
+      };
+
+      // Iniciar polling após 5 segundos
+      setTimeout(pollStatus, 5000);
+
     } catch (error: any) {
-      console.error('Erro ao gerar horário:', error);
-      alert(`Erro ao gerar horário: ${error.response?.data?.detail || error.message}`);
-    } finally {
+      clearInterval(timer);
+      console.error('Erro ao iniciar geração:', error);
+      alert(`Erro ao iniciar geração: ${error.response?.data?.detail || error.message}`);
+      setShowProgressModal(false);
       setHorarioToGenerate(null);
       setTurnoGerar('');
+      setProgressTime(0);
     }
   };
 
@@ -165,6 +210,12 @@ export default function HorariosPage() {
               <p>
                 <strong>Qualidade:</strong> {horario.qualidade_score}%
               </p>
+              {horario.tem_conflitos && (
+                <div className="flex items-center space-x-2 text-red-600">
+                  <FaExclamationTriangle />
+                  <span className="text-sm font-medium">Conflitos detectados</span>
+                </div>
+              )}
             </div>
 
             <div className="flex space-x-2">
@@ -264,7 +315,47 @@ export default function HorariosPage() {
           </div>
         </div>
       )}
-
+      {/* Modal de Progresso */}
+      {showProgressModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Gerando Horário
+              </h3>
+              <p className="text-gray-600 mb-4">
+                Por favor, aguarde enquanto o horário está sendo otimizado...
+              </p>
+              
+              <div className="space-y-2 text-sm text-gray-700">
+                <div className="flex justify-between">
+                  <span>Tempo percorrido:</span>
+                  <span className="font-mono">{Math.floor(progressTime / 60)}:{(progressTime % 60).toString().padStart(2, '0')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tempo estimado:</span>
+                  <span className="font-mono">até 5:00</span>
+                </div>
+              </div>
+              
+              <div className="mt-4">
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-blue-500 h-2 rounded-full transition-all duration-1000"
+                    style={{
+                      width: `${Math.min((progressTime / 300) * 100, 100)}%`,
+                    }}
+                  ></div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {Math.min(Math.round((progressTime / 300) * 100), 100)}% concluído
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Modal Configuração Geração */}
       {showGerarModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -318,7 +409,7 @@ export default function HorariosPage() {
                   Cancelar
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}

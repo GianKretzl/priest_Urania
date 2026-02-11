@@ -25,7 +25,6 @@ class DiaSemanaEnum(str, Enum):
     QUARTA = "QUARTA"
     QUINTA = "QUINTA"
     SEXTA = "SEXTA"
-    SABADO = "SABADO"
 
 
 class StatusHorarioEnum(str, Enum):
@@ -287,6 +286,7 @@ class Horario(HorarioBase):
     aulas_alocadas: int
     pendencias: List[dict] = []
     qualidade_score: int
+    tem_conflitos: bool
     
     class Config:
         from_attributes = True
@@ -335,3 +335,4 @@ class GerarHorarioResponse(BaseModel):
     pendencias: List[dict]
     qualidade_score: int
     tempo_geracao: float
+    tempo_maximo: int

@@ -10,7 +10,7 @@ class DiaSemanaEnum(str, enum.Enum):
     QUARTA = "QUARTA"
     QUINTA = "QUINTA"
     SEXTA = "SEXTA"
-    SABADO = "SABADO"
+    # SABADO removido: não há aulas aos sábados
 
 
 class TurnoEnum(str, enum.Enum):
