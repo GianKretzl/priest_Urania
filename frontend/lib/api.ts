@@ -20,11 +20,32 @@ const api = axios.create({
   timeout: 600000, // 10 minutos em milissegundos
 });
 
+// Cliente separado para polling com timeout menor
+const apiPolling = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  timeout: 25000, // 25 segundos para polling
+});
+
 // Interceptor para tratamento de erros
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     console.error('API Error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Interceptor para apiPolling
+apiPolling.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Para polling, não logar erros de timeout como errors críticos
+    if (error.code !== 'ECONNABORTED' && error.response?.status !== 504) {
+      console.error('API Polling Error:', error);
+    }
     return Promise.reject(error);
   }
 );
@@ -203,6 +224,7 @@ export interface HorarioCreate {
 export const horarioService = {
   getAll: () => api.get<Horario[]>('/horarios'),
   getById: (id: number) => api.get<Horario>(`/horarios/${id}`),
+  getByIdPolling: (id: number) => apiPolling.get<Horario>(`/horarios/${id}`),
   getAulas: (id: number) => api.get<HorarioAula[]>(`/horarios/${id}/aulas`),
   getAulasByTurma: (horarioId: number, turmaId: number) => 
     api.get<HorarioAula[]>(`/horarios/${horarioId}/turma/${turmaId}`),

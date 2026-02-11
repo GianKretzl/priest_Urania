@@ -81,7 +81,7 @@ export default function HorariosPage() {
 
       // Polling para verificar status com contador de tentativas
       let pollAttempts = 0;
-      const maxPollAttempts = 150; // 5 minutos = 150 tentativas de 2 segundos
+      const maxPollAttempts = 60; // 5 minutos = 60 tentativas de 5 segundos
 
       const pollStatus = async () => {
         pollAttempts++;
@@ -99,7 +99,7 @@ export default function HorariosPage() {
         }
 
         try {
-          const response = await horarioService.getById(horarioToGenerate);
+          const response = await horarioService.getByIdPolling(horarioToGenerate);
           const horario = response.data;
 
           if (horario.status === 'FINALIZADO' || horario.status === 'APROVADO') {
@@ -120,13 +120,13 @@ export default function HorariosPage() {
             setProgressTime(0);
           } else {
             // Ainda em progresso, continuar polling
-            setTimeout(pollStatus, 2000);
+            setTimeout(pollStatus, 5000);
           }
         } catch (error: any) {
           // Em caso de erro, continuar tentando até o limite
-          console.warn(`Tentativa ${pollAttempts} falhou, continuando...`, error);
+          console.warn(`Tentativa ${pollAttempts} falhou, continuando...`);
           if (pollAttempts < maxPollAttempts) {
-            setTimeout(pollStatus, 2000);
+            setTimeout(pollStatus, 5000);
           } else {
             clearInterval(timer);
             console.error('Erro ao verificar status após múltiplas tentativas:', error);
@@ -139,8 +139,8 @@ export default function HorariosPage() {
         }
       };
 
-      // Iniciar polling após 2 segundos
-      setTimeout(pollStatus, 2000);
+      // Iniciar polling após 5 segundos
+      setTimeout(pollStatus, 5000);
 
     } catch (error: any) {
       clearInterval(timer);
