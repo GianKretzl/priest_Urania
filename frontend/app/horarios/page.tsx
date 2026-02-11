@@ -79,8 +79,25 @@ export default function HorariosPage() {
         tempo_maximo_geracao: 300,
       });
 
-      // Polling para verificar status
+      // Polling para verificar status com contador de tentativas
+      let pollAttempts = 0;
+      const maxPollAttempts = 150; // 5 minutos = 150 tentativas de 2 segundos
+
       const pollStatus = async () => {
+        pollAttempts++;
+        
+        // Verificar se excedeu o número máximo de tentativas
+        if (pollAttempts > maxPollAttempts) {
+          clearInterval(timer);
+          alert('Timeout: A geração do horário demorou mais que o esperado. Verifique o status manualmente.');
+          setShowProgressModal(false);
+          setHorarioToGenerate(null);
+          setTurnoGerar('');
+          setProgressTime(0);
+          await carregarHorarios();
+          return;
+        }
+
         try {
           const response = await horarioService.getById(horarioToGenerate);
           const horario = response.data;
@@ -103,21 +120,27 @@ export default function HorariosPage() {
             setProgressTime(0);
           } else {
             // Ainda em progresso, continuar polling
-            setTimeout(pollStatus, 5000);
+            setTimeout(pollStatus, 2000);
           }
-        } catch (error) {
-          clearInterval(timer);
-          console.error('Erro ao verificar status:', error);
-          alert('Erro ao verificar status da geração');
-          setShowProgressModal(false);
-          setHorarioToGenerate(null);
-          setTurnoGerar('');
-          setProgressTime(0);
+        } catch (error: any) {
+          // Em caso de erro, continuar tentando até o limite
+          console.warn(`Tentativa ${pollAttempts} falhou, continuando...`, error);
+          if (pollAttempts < maxPollAttempts) {
+            setTimeout(pollStatus, 2000);
+          } else {
+            clearInterval(timer);
+            console.error('Erro ao verificar status após múltiplas tentativas:', error);
+            alert('Erro ao verificar status da geração após múltiplas tentativas');
+            setShowProgressModal(false);
+            setHorarioToGenerate(null);
+            setTurnoGerar('');
+            setProgressTime(0);
+          }
         }
       };
 
-      // Iniciar polling após 5 segundos
-      setTimeout(pollStatus, 5000);
+      // Iniciar polling após 2 segundos
+      setTimeout(pollStatus, 2000);
 
     } catch (error: any) {
       clearInterval(timer);
@@ -349,7 +372,7 @@ export default function HorariosPage() {
                   ></div>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  {Math.min(Math.round((progressTime / 300) * 100), 100)}% concluído
+                  {Math.min(Math.round((progressTime / 300) * 100), 100)}% do tempo estimado
                 </p>
               </div>
             </div>

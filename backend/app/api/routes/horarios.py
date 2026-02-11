@@ -121,7 +121,7 @@ def gerar_horario(
     db.commit()
     
     # Adicionar tarefa em background
-    background_tasks.add_task(gerar_horario_background, horario_id, request, db)
+    background_tasks.add_task(gerar_horario_background, horario_id, request)
     
     # Retornar resposta imediata
     return GerarHorarioResponse(
@@ -357,28 +357,30 @@ def exportar_horario_professor_csv(horario_id: int, professor_id: int, db: Sessi
     return PlainTextResponse(content=csv_content, media_type="text/csv")
 
 
-def gerar_horario_background(horario_id: int, request: GerarHorarioRequest, db: Session):
+def gerar_horario_background(horario_id: int, request: GerarHorarioRequest):
     """
     Função executada em background para gerar o horário
     """
+    # Criar nova sessão de banco de dados para a thread em background
+    from app.core.database import SessionLocal
+    db = SessionLocal()
+    
     try:
-        print(f"Iniciando geração em background para horário {horario_id}")
-        
         # Criar gerador com filtro de turno se especificado
         generator = HorarioGenerator(db, horario_id, turno=request.turno)
         
         # Gerar horário
         resultado = generator.gerar(tempo_maximo=request.tempo_maximo_geracao)
         
-        print(f"Geração concluída para horário {horario_id}: {resultado}")
-        
         # O resultado já foi salvo no banco pelo generator
         
     except Exception as e:
-        print(f"Erro na geração em background para horário {horario_id}: {str(e)}")
         # Em caso de erro, atualizar status
         horario = db.query(HorarioModel).filter(HorarioModel.id == horario_id).first()
         if horario:
             horario.status = "RASCUNHO"
             db.commit()
-        print(f"Status do horário {horario_id} revertido para RASCUNHO devido a erro")
+        print(f"Erro na geração em background: {str(e)}")
+    finally:
+        # Fechar sessão
+        db.close()
