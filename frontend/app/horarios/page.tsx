@@ -8,6 +8,9 @@ import { horarioService, Horario, HorarioCreate } from '@/lib/api';
 export default function HorariosPage() {
   const [horarios, setHorarios] = useState<Horario[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [showGerarModal, setShowGerarModal] = useState(false);
+  const [horarioToGenerate, setHorarioToGenerate] = useState<number | null>(null);
+  const [turnoGerar, setTurnoGerar] = useState<'MATUTINO' | 'VESPERTINO' | 'NOTURNO' | ''>('');
   const [formData, setFormData] = useState<HorarioCreate>({
     nome: '',
     ano_letivo: new Date().getFullYear(),
@@ -47,13 +50,19 @@ export default function HorariosPage() {
   };
 
   const handleGerar = async (id: number) => {
-    if (!confirm('Deseja iniciar a geração automática do horário? Este processo pode levar alguns minutos.')) {
-      return;
-    }
+    setHorarioToGenerate(id);
+    setShowGerarModal(true);
+  };
+
+  const handleConfirmGerar = async () => {
+    if (!horarioToGenerate) return;
+
+    setShowGerarModal(false);
 
     try {
-      const response = await horarioService.gerar(id, {
-        horario_id: id,
+      const response = await horarioService.gerar(horarioToGenerate, {
+        horario_id: horarioToGenerate,
+        turno: turnoGerar || null,
         limitar_janelas: true,
         respeitar_deslocamento: true,
         distribuir_uniformemente: true,
@@ -70,6 +79,9 @@ export default function HorariosPage() {
     } catch (error: any) {
       console.error('Erro ao gerar horário:', error);
       alert(`Erro ao gerar horário: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setHorarioToGenerate(null);
+      setTurnoGerar('');
     }
   };
 
@@ -243,6 +255,64 @@ export default function HorariosPage() {
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg transition"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Configuração Geração */}
+      {showGerarModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-2xl font-bold mb-4">Gerar Horário</h2>
+            <div className="space-y-4">
+              <p className="text-gray-600">
+                Selecione o turno para gerar o horário. Se nenhum turno for selecionado, todos os turnos serão gerados.
+              </p>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Turno
+                </label>
+                <select
+                  value={turnoGerar}
+                  onChange={(e) => setTurnoGerar(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Todos os Turnos</option>
+                  <option value="MATUTINO">Manhã (07:00 - 12:15)</option>
+                  <option value="VESPERTINO">Tarde (13:00 - 18:15)</option>
+                  <option value="NOTURNO">Noite (18:00 - 21:40)</option>
+                </select>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-800">
+                  <strong>Importante:</strong> As aulas regentes serão priorizadas no turno principal. 
+                  As horas-atividade serão alocadas preferencialmente em contra-turno quando possível.
+                </p>
+              </div>
+
+              <div className="flex space-x-2 pt-4">
+                <button
+                  type="button"
+                  onClick={handleConfirmGerar}
+                  className="flex-1 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition"
+                >
+                  Gerar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowGerarModal(false);
+                    setHorarioToGenerate(null);
+                    setTurnoGerar('');
+                  }}
                   className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg transition"
                 >
                   Cancelar

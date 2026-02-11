@@ -99,11 +99,10 @@ class ProfessorBase(BaseModel):
     email: EmailStr
     telefone: Optional[str] = None
     cpf: Optional[str] = None
-    carga_horaria_maxima: int = 40
-    horas_atividade: int = 0
-    max_aulas_seguidas: int = 4
-    max_aulas_dia: int = 8
-    tempo_deslocamento: int = 0
+    carga_horaria_maxima: int = 30  # Horas de REGÊNCIA semanais (em sala de aula)
+    # horas_atividade é calculado automaticamente (regra 15/5: 1h atividade a cada 3h de regência)
+    max_aulas_seguidas: int = 3
+    max_aulas_dia: int = 12
     ativo: bool = True
 
 
@@ -117,16 +116,18 @@ class ProfessorUpdate(BaseModel):
     telefone: Optional[str] = None
     cpf: Optional[str] = None
     carga_horaria_maxima: Optional[int] = None
-    horas_atividade: Optional[int] = None
+    # horas_atividade removido - é calculado automaticamente
     max_aulas_seguidas: Optional[int] = None
     max_aulas_dia: Optional[int] = None
-    tempo_deslocamento: Optional[int] = None
     ativo: Optional[bool] = None
     disciplinas_ids: Optional[List[int]] = None
 
 
 class Professor(ProfessorBase):
     id: int
+    horas_regencia: int       # Campo calculado (mesmo valor de carga_horaria_maxima)
+    horas_atividade: int      # Campo calculado (horas_regencia / 3)
+    carga_horaria_total: int  # Campo calculado (horas_regencia + horas_atividade)
     disciplinas: List[Disciplina] = []
     
     class Config:
@@ -234,6 +235,8 @@ class DisponibilidadeBase(BaseModel):
     horario_inicio: str
     horario_fim: str
     disponivel: bool = True
+    turno: Optional[TurnoEnum] = None
+    dia_nao_trabalha: bool = False
 
 
 class DisponibilidadeCreate(DisponibilidadeBase):
@@ -246,6 +249,8 @@ class DisponibilidadeUpdate(BaseModel):
     horario_inicio: Optional[str] = None
     horario_fim: Optional[str] = None
     disponivel: Optional[bool] = None
+    turno: Optional[TurnoEnum] = None
+    dia_nao_trabalha: Optional[bool] = None
 
 
 class Disponibilidade(DisponibilidadeBase):
@@ -314,6 +319,7 @@ class HorarioAula(HorarioAulaBase):
 
 # Geração de Horário
 class GerarHorarioRequest(BaseModel):
+    turno: Optional[TurnoEnum] = None  # Turno específico a ser gerado (None = todos)
     limitar_janelas: bool = True
     respeitar_deslocamento: bool = True
     distribuir_uniformemente: bool = True

@@ -15,11 +15,12 @@ interface Professor {
   email: string;
   telefone?: string;
   cpf?: string;
-  carga_horaria_maxima: number;
-  horas_atividade: number;
+  carga_horaria_maxima: number;  // Campo que o usuário edita (horas de regência)
+  horas_regencia: number;        // Calculado (mesmo valor de carga_horaria_maxima)
+  horas_atividade: number;       // Calculado automaticamente (regência / 3)
+  carga_horaria_total: number;   // Calculado automaticamente (regência + atividade)
   max_aulas_seguidas: number;
   max_aulas_dia: number;
-  tempo_deslocamento: number;
   ativo: boolean;
   disciplinas?: Disciplina[];
 }
@@ -36,14 +37,22 @@ export default function ProfessoresPage() {
     email: '',
     telefone: '',
     cpf: '',
-    carga_horaria_maxima: 40,
-    horas_atividade: 8,
-    max_aulas_seguidas: 4,
-    max_aulas_dia: 8,
-    tempo_deslocamento: 0,
+    carga_horaria_maxima: 30,  // Horas de regência (em sala)
+    max_aulas_seguidas: 3,
+    max_aulas_dia: 12,
     ativo: true,
     disciplinas_ids: [] as number[],
   });
+
+  // Calcula automaticamente horas-atividade seguindo regra 15/5
+  // Para cada 3h de regência → 1h de atividade
+  const calcularHorasAtividade = (horasRegencia: number) => {
+    return Math.floor(horasRegencia / 3);
+  };
+
+  const calcularCargaTotal = (horasRegencia: number) => {
+    return horasRegencia + calcularHorasAtividade(horasRegencia);
+  };
 
   useEffect(() => {
     carregarProfessores();
@@ -109,10 +118,8 @@ export default function ProfessoresPage() {
       telefone: professor.telefone || '',
       cpf: professor.cpf || '',
       carga_horaria_maxima: professor.carga_horaria_maxima,
-      horas_atividade: professor.horas_atividade,
       max_aulas_seguidas: professor.max_aulas_seguidas,
       max_aulas_dia: professor.max_aulas_dia,
-      tempo_deslocamento: professor.tempo_deslocamento,
       ativo: professor.ativo,
       disciplinas_ids: professor.disciplinas?.map(d => d.id) || [],
     });
@@ -138,11 +145,9 @@ export default function ProfessoresPage() {
       email: '',
       telefone: '',
       cpf: '',
-      carga_horaria_maxima: 40,
-      horas_atividade: 8,
-      max_aulas_seguidas: 4,
-      max_aulas_dia: 8,
-      tempo_deslocamento: 0,
+      carga_horaria_maxima: 30,  // Horas de regência padrão
+      max_aulas_seguidas: 3,
+      max_aulas_dia: 12,
       ativo: true,
       disciplinas_ids: [],
     });
@@ -229,26 +234,38 @@ export default function ProfessoresPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Carga Horária Máxima (aulas/semana)
+                    Horas de Regência Semanais (em sala) *
                   </label>
                   <input
                     type="number"
+                    required
+                    min="1"
+                    max="50"
                     value={formData.carga_horaria_maxima}
-                    onChange={(e) => setFormData({ ...formData, carga_horaria_maxima: parseInt(e.target.value) })}
+                    onChange={(e) => setFormData({ ...formData, carga_horaria_maxima: parseInt(e.target.value) || 0 })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ex: 30 horas"
                   />
+                  <p className="text-xs text-gray-500 mt-1">Informe quantas horas o professor dá aulas</p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Horas-Atividade (h/semana)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.horas_atividade}
-                    onChange={(e) => setFormData({ ...formData, horas_atividade: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+                {/* Cálculo automático das horas */}
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <div className="text-xs font-semibold text-blue-800 mb-2">📊 Regra 15/5 (Cálculo Automático)</div>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-700">Horas-Atividade:</span>
+                      <span className="font-bold text-orange-600">{calcularHorasAtividade(formData.carga_horaria_maxima)}h/semana</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-1 mt-1">
+                      <span className="text-gray-700 font-semibold">Carga Total (Jornada):</span>
+                      <span className="font-bold text-blue-700">{calcularCargaTotal(formData.carga_horaria_maxima)}h/semana</span>
+                    </div>
+                    <div className="text-xs text-gray-600 mt-2 pt-2 border-t border-blue-200">
+                      💡 Para cada 3h de regência → 1h de atividade<br/>
+                      📝 Exemplos: 30h regência = 10h atividade = 40h total
+                    </div>
+                  </div>
                 </div>
 
                 <div>
@@ -271,18 +288,6 @@ export default function ProfessoresPage() {
                     type="number"
                     value={formData.max_aulas_dia}
                     onChange={(e) => setFormData({ ...formData, max_aulas_dia: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tempo Deslocamento (minutos)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.tempo_deslocamento}
-                    onChange={(e) => setFormData({ ...formData, tempo_deslocamento: parseInt(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -377,7 +382,7 @@ export default function ProfessoresPage() {
                 Carga Total
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Horas em Sala
+                Horas Regência
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Horas Atividade
@@ -412,14 +417,14 @@ export default function ProfessoresPage() {
                     <span className="text-gray-400 italic">Nenhuma</span>
                   )}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  <span className="font-semibold text-gray-900">{professor.carga_horaria_maxima + professor.horas_atividade}h</span>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600">
+                  <span className="font-semibold">{professor.carga_horaria_total || (professor.carga_horaria_maxima + professor.horas_atividade)}h</span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {professor.carga_horaria_maxima}h
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">
+                  <span className="font-semibold">{professor.horas_regencia || professor.carga_horaria_maxima}h</span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {professor.horas_atividade}h
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-orange-600">
+                  <span className="font-semibold">{professor.horas_atividade}h</span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span

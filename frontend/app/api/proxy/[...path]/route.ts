@@ -29,21 +29,38 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const path = request.nextUrl.pathname.replace('/api/proxy', '');
   const url = `http://backend:8000/api/v1${path}`;
-  const body = await request.json();
+  
+  let body = null;
+  try {
+    // Tentar ler o body, mas não falhar se estiver vazio
+    const text = await request.text();
+    if (text && text.trim().length > 0) {
+      body = JSON.parse(text);
+    }
+  } catch (e) {
+    // Body vazio ou inválido, tudo bem para algumas rotas
+    body = null;
+  }
 
   try {
     // Timeout maior para operações de geração de horário
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 290000); // 290 segundos (deixa margem para o maxDuration)
 
-    const response = await fetch(url, {
+    const fetchOptions: RequestInit = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
       signal: controller.signal,
-    });
+    };
+
+    // Só adiciona body se houver um
+    if (body !== null) {
+      fetchOptions.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(url, fetchOptions);
 
     clearTimeout(timeoutId);
 
@@ -61,16 +78,30 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const path = request.nextUrl.pathname.replace('/api/proxy', '');
   const url = `http://backend:8000/api/v1${path}`;
-  const body = await request.json();
+  
+  let body = null;
+  try {
+    const text = await request.text();
+    if (text && text.trim().length > 0) {
+      body = JSON.parse(text);
+    }
+  } catch (e) {
+    body = null;
+  }
 
   try {
-    const response = await fetch(url, {
+    const fetchOptions: RequestInit = {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
-    });
+    };
+
+    if (body !== null) {
+      fetchOptions.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(url, fetchOptions);
 
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });

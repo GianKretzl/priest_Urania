@@ -18,7 +18,7 @@ router = APIRouter(prefix="/grades-curriculares", tags=["grades-curriculares"])
 
 
 @router.get("/", response_model=List[GradeCurricular])
-def listar_grades(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def listar_grades(skip: int = 0, limit: int = 500, db: Session = Depends(get_db)):
     grades = db.query(GradeCurricularModel).options(
         joinedload(GradeCurricularModel.turma),
         joinedload(GradeCurricularModel.disciplina),

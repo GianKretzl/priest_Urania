@@ -66,11 +66,9 @@ def criar_professores(db):
             email=f"{nome.lower().replace(' ', '')}@escola.com",
             telefone=f"41999{str(idx).zfill(6)}",
             cpf=f"000.000.000-{str(idx).zfill(2)}",
-            carga_horaria_maxima=40,  # Será atualizado depois
-            horas_atividade=8,
-            max_aulas_seguidas=4,
-            max_aulas_dia=8,
-            tempo_deslocamento=0,
+            carga_horaria_maxima=30,  # Horas de regência
+            max_aulas_seguidas=3,
+            max_aulas_dia=12,
             ativo=True
         )
         db.add(professor)

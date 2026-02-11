@@ -103,8 +103,8 @@ def gerar_horario(horario_id: int, request: GerarHorarioRequest, db: Session = D
     db.commit()
     
     try:
-        # Criar gerador
-        generator = HorarioGenerator(db, horario_id)
+        # Criar gerador com filtro de turno se especificado
+        generator = HorarioGenerator(db, horario_id, turno=request.turno)
         
         # Gerar horário
         resultado = generator.gerar(tempo_maximo=request.tempo_maximo_geracao)

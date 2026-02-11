@@ -17,9 +17,10 @@ class HorarioGenerator:
     Motor de geração de horários usando programação com restrições (CP-SAT do OR-Tools).
     """
     
-    def __init__(self, db: Session, horario_id: int):
+    def __init__(self, db: Session, horario_id: int, turno: str = None):
         self.db = db
         self.horario_id = horario_id
+        self.turno_filtro = turno  # Turno específico para gerar (None = todos)
         self.horario = db.query(Horario).filter(Horario.id == horario_id).first()
         
         if not self.horario:
@@ -27,9 +28,29 @@ class HorarioGenerator:
         
         # Configurações de tempo
         self.dias_semana = ["SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA"]
-        self.slots_por_dia = 6  # 6 aulas por dia
+        self.slots_por_dia = 6  # 6 aulas por dia (manhã OU tarde)
         self.duracao_aula = 50  # minutos
-        self.horario_inicio_manha = "07:30"
+        
+        # Horários fixos das aulas (seguindo grade real)
+        # Manhã: 07:00, 07:50, 08:45, 09:45, 10:35, 11:25
+        # Tarde: 13:00, 13:50, 14:40, 15:45, 16:35, 17:25
+        # Noite: 18:00, 18:55, 19:50, 20:45, 21:40
+        self.horarios_manha = [
+            ("07:00", "07:50"),
+            ("07:50", "08:40"),
+            ("08:45", "09:35"),
+            ("09:45", "10:35"),
+            ("10:35", "11:25"),
+            ("11:25", "12:15"),
+        ]
+        self.horarios_tarde = [
+            ("13:00", "13:50"),
+            ("13:50", "14:40"),
+            ("14:40", "15:30"),
+            ("15:45", "16:35"),
+            ("16:35", "17:25"),
+            ("17:25", "18:15"),
+        ]
         
         # Modelo CP-SAT
         self.model = cp_model.CpModel()
@@ -49,10 +70,22 @@ class HorarioGenerator:
         
     def carregar_dados(self):
         """Carrega todos os dados necessários do banco"""
-        # Carregar grades curriculares ativas
-        self.grades = self.db.query(GradeCurricular).filter(
+        # Carregar grades curriculares ativas, filtrando por turno se especificado
+        grades_query = self.db.query(GradeCurricular).filter(
             GradeCurricular.ativa == True
-        ).all()
+        )
+        
+        # Se um turno específico foi selecionado, filtrar apenas turmas desse turno
+        if self.turno_filtro:
+            # Obter IDs das turmas do turno selecionado
+            turmas_turno = self.db.query(Turma.id).filter(
+                Turma.turno == self.turno_filtro,
+                Turma.ativa == True
+            ).all()
+            turma_ids = [t[0] for t in turmas_turno]
+            grades_query = grades_query.filter(GradeCurricular.turma_id.in_(turma_ids))
+        
+        self.grades = grades_query.all()
         
         # Carregar professores
         professores_query = self.db.query(Professor).filter(Professor.ativo == True).all()
@@ -289,74 +322,18 @@ class HorarioGenerator:
                     self.model.Add(sum(vars_total) <= max_aulas_semana)
     
     def _adicionar_restricoes_deslocamento(self):
-        """Considera tempo de deslocamento entre sedes diferentes"""
-        # Mapear ambientes por sede
-        ambientes_por_sede = {}
-        for ambiente in self.ambientes:
-            if ambiente.sede_id not in ambientes_por_sede:
-                ambientes_por_sede[ambiente.sede_id] = []
-            ambientes_por_sede[ambiente.sede_id].append(ambiente)
-        
-        # Se houver apenas uma sede, não há necessidade de deslocamento
-        if len(ambientes_por_sede) <= 1:
-            return
-        
-        for prof_id, professor in self.professores.items():
-            if professor.tempo_deslocamento == 0:
-                continue
-            
-            # Calcular quantos slots são necessários para deslocamento
-            slots_deslocamento = (professor.tempo_deslocamento + self.duracao_aula - 1) // self.duracao_aula
-            
-            if slots_deslocamento == 0:
-                slots_deslocamento = 1  # No mínimo 1 slot de intervalo
-            
-            # Para cada dia, verificar aulas consecutivas em sedes diferentes
-            for dia_idx in range(len(self.dias_semana)):
-                for slot in range(self.slots_por_dia - slots_deslocamento):
-                    # Para cada par de sedes diferentes
-                    for sede1_id, ambientes_sede1 in ambientes_por_sede.items():
-                        for sede2_id, ambientes_sede2 in ambientes_por_sede.items():
-                            if sede1_id >= sede2_id:
-                                continue  # Evitar duplicação
-                            
-                            # Variáveis para aulas na sede 1 no slot atual
-                            vars_sede1_slot = []
-                            for ambiente in ambientes_sede1:
-                                for grade in self.grades:
-                                    if grade.professor_id == prof_id:
-                                        for aula_num in range(grade.aulas_por_semana):
-                                            var_name = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot}_amb{ambiente.id}"
-                                            if var_name in self.variaveis:
-                                                vars_sede1_slot.append(self.variaveis[var_name])
-                            
-                            # Variáveis para aulas na sede 2 nos próximos slots (dentro do tempo de deslocamento)
-                            for slot_offset in range(1, slots_deslocamento + 1):
-                                slot_futuro = slot + slot_offset
-                                if slot_futuro >= self.slots_por_dia:
-                                    break
-                                
-                                vars_sede2_slot = []
-                                for ambiente in ambientes_sede2:
-                                    for grade in self.grades:
-                                        if grade.professor_id == prof_id:
-                                            for aula_num in range(grade.aulas_por_semana):
-                                                var_name = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot_futuro}_amb{ambiente.id}"
-                                                if var_name in self.variaveis:
-                                                    vars_sede2_slot.append(self.variaveis[var_name])
-                                
-                                # Se há aula na sede 1 no slot atual, não pode haver na sede 2 no slot futuro próximo
-                                if vars_sede1_slot and vars_sede2_slot:
-                                    for var1 in vars_sede1_slot:
-                                        for var2 in vars_sede2_slot:
-                                            # Se var1 = 1, então var2 = 0 (não ambas podem ser 1)
-                                            self.model.Add(var1 + var2 <= 1)
+        """
+        DESATIVADA: Considera tempo de deslocamento entre sedes diferentes
+        Campo tempo_deslocamento foi removido do modelo Professor
+        """
+        # Função desativada - tempo_deslocamento removido
+        return
     
     def adicionar_objetivos(self):
         """Define a função objetivo para otimização"""
-        # Objetivo: minimizar janelas (horários vagos) dos professores
         penalidades = []
         
+        # 1. Minimizar janelas (horários vagos) dos professores
         for prof_id in self.professores:
             for dia_idx in range(len(self.dias_semana)):
                 # Para cada sequência de 3 slots, penalizar se tiver aula no início e fim mas não no meio
@@ -386,6 +363,26 @@ class HorarioGenerator:
                         # Janela = (início OR fim) AND NOT meio
                         # Simplificado: somar penalidades
                         penalidades.append(janela_var)
+        
+        # 2. Priorizar alocação de horas atividade em contraturno
+        if self.turno_filtro:
+            for prof_id, professor in self.professores.items():
+                if professor.horas_atividade > 0:
+                    duracao_slot_horas = self.duracao_aula / 60.0
+                    num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
+                    
+                    for hora_num in range(num_slots_atividade):
+                        for dia_idx in range(len(self.dias_semana)):
+                            for slot in range(self.slots_por_dia):
+                                var_name = f"ha_p{prof_id}_h{hora_num}_d{dia_idx}_s{slot}"
+                                if var_name in self.variaveis_horas_atividade:
+                                    # Penalizar alocação de hora atividade no turno principal
+                                    # Peso maior = mais penalidade = menos preferência
+                                    penalidade_turno = self.model.NewBoolVar(f"pen_{var_name}")
+                                    self.model.Add(penalidade_turno == self.variaveis_horas_atividade[var_name])
+                                    # Peso 5 para horas atividade no turno principal (desincentivar)
+                                    for _ in range(5):
+                                        penalidades.append(penalidade_turno)
         
         # Minimizar penalidades
         if penalidades:
@@ -422,10 +419,12 @@ class HorarioGenerator:
                 ambiente_id = int(parts[4][3:])
                 
                 grade = next(g for g in self.grades if g.id == grade_id)
+                turma = self.turmas.get(grade.turma_id)
+                turno = turma.turno if turma else "MATUTINO"
                 
-                # Calcular horário
-                horario_inicio = self._calcular_horario(slot)
-                horario_fim = self._calcular_horario(slot, fim=True)
+                # Calcular horário usando o turno da turma
+                horario_inicio = self._calcular_horario(slot, turno)
+                horario_fim = self._calcular_horario(slot, turno, fim=True)
                 
                 # Criar aula (com suporte a segundo professor se aplicável)
                 aula_data = {
@@ -448,6 +447,70 @@ class HorarioGenerator:
                 self.db.add(aula)
                 aulas_criadas += 1
         
+        # Extrair e salvar horas atividade dos professores
+        for var_name, var in self.variaveis_horas_atividade.items():
+            if self.solver.Value(var) == 1:
+                # Parse do nome da variável
+                # Formato: ha_p{prof_id}_h{hora_num}_d{dia_idx}_s{slot}
+                parts = var_name.split('_')
+                prof_id = int(parts[1][1:])
+                dia_idx = int(parts[3][1:])
+                slot = int(parts[4][1:])
+                
+                professor = self.professores.get(prof_id)
+                if not professor:
+                    continue
+                
+                # Determinar o turno da hora atividade
+                # Se o professor tem turmas em algum turno, usar o turno oposto se possível
+                turno_ha = "VESPERTINO"  # Padrão: tarde
+                
+                # Se filtro de turno está ativo, alocar contraturno
+                if self.turno_filtro:
+                    if self.turno_filtro == "MATUTINO":
+                        turno_ha = "VESPERTINO"
+                    elif self.turno_filtro == "VESPERTINO":
+                        turno_ha = "MATUTINO"
+                    else:  # NOTURNO
+                        turno_ha = "VESPERTINO"
+                else:
+                    # Sem filtro, tentar identificar turno predominante do professor
+                    turnos_professor = set()
+                    for grade in self.grades:
+                        if grade.professor_id == prof_id:
+                            turma = self.turmas.get(grade.turma_id)
+                            if turma:
+                                turnos_professor.add(turma.turno)
+                    
+                    # Se professor trabalha só manhã, hora atividade na tarde
+                    if turnos_professor == {"MATUTINO"}:
+                        turno_ha = "VESPERTINO"
+                    # Se só tarde, hora atividade na manhã
+                    elif turnos_professor == {"VESPERTINO"}:
+                        turno_ha = "MATUTINO"
+                    # Se trabalha em múltiplos turnos ou noturno, usar tarde como padrão
+                    else:
+                        turno_ha = "VESPERTINO"
+                
+                # Calcular horário usando o turno determinado
+                horario_inicio = self._calcular_horario(slot, turno_ha)
+                horario_fim = self._calcular_horario(slot, turno_ha, fim=True)
+                
+                # Criar entrada de hora atividade (como aula especial sem turma)
+                aula_ha = HorarioAula(
+                    horario_id=self.horario_id,
+                    turma_id=None,  # Hora atividade não tem turma
+                    disciplina_id=None,  # Hora atividade não tem disciplina
+                    professor_id=prof_id,
+                    ambiente_id=None,  # Hora atividade não precisa de ambiente específico
+                    dia_semana=self.dias_semana[dia_idx],
+                    horario_inicio=horario_inicio,
+                    horario_fim=horario_fim,
+                    ordem=slot + 1,
+                    tipo_aula="HORA_ATIVIDADE"  # Marcar como hora atividade
+                )
+                self.db.add(aula_ha)
+        
         # Atualizar estatísticas do horário
         total_aulas = sum(g.aulas_por_semana for g in self.grades)
         self.horario.total_aulas = total_aulas
@@ -459,21 +522,43 @@ class HorarioGenerator:
         
         return aulas_criadas
     
-    def _calcular_horario(self, slot: int, fim: bool = False) -> str:
-        """Calcula o horário com base no slot"""
-        # Horário base: 07:30
-        hora_base = 7
-        minuto_base = 30
+    def _calcular_horario(self, slot: int, turno: str = "MATUTINO", fim: bool = False) -> str:
+        """
+        Retorna o horário com base no slot e turno
         
-        minutos_totais = hora_base * 60 + minuto_base + (slot * self.duracao_aula)
+        Args:
+            slot: número do slot (0-5)
+            turno: MATUTINO, VESPERTINO ou NOTURNO
+            fim: se True, retorna horário de fim; senão, retorna horário de início
+        """
+        if slot < 0 or slot >= 6:
+            # Fallback para cálculo genérico se slot inválido
+            hora = 7 + (slot // 2)
+            minuto = (slot % 2) * 50
+            if fim:
+                minuto += 50
+            if minuto >= 60:
+                hora += 1
+                minuto -= 60
+            return f"{hora:02d}:{minuto:02d}"
         
-        if fim:
-            minutos_totais += self.duracao_aula
+        # Usar horários fixos conforme o turno
+        if turno == "MATUTINO":
+            horario_tupla = self.horarios_manha[slot]
+        elif turno == "VESPERTINO":
+            horario_tupla = self.horarios_tarde[slot]
+        else:  # NOTURNO ou outro
+            # Para noite, usar cálculo baseado em 18:00
+            hora = 18 + (slot * 50) // 60
+            minuto = (slot * 50) % 60
+            if fim:
+                minuto += 50
+                if minuto >= 60:
+                    hora += 1
+                    minuto -= 60
+            return f"{hora:02d}:{minuto:02d}"
         
-        hora = minutos_totais // 60
-        minuto = minutos_totais % 60
-        
-        return f"{hora:02d}:{minuto:02d}"
+        return horario_tupla[1] if fim else horario_tupla[0]
     
     def _detectar_pendencias(self):
         """Detecta pendências e gera sugestões de resolução"""
@@ -540,23 +625,12 @@ class HorarioGenerator:
             })
     
     def _analisar_conflitos_deslocamento(self):
-        """Analisa se restrições de deslocamento estão causando problemas"""
-        # Verificar se há múltiplas sedes
-        sedes_usadas = set(amb.sede_id for amb in self.ambientes)
-        
-        if len(sedes_usadas) > 1:
-            # Verificar professores com tempo de deslocamento alto
-            for prof_id, professor in self.professores.items():
-                if professor.tempo_deslocamento > 45:  # Mais de 45 minutos
-                    grades_prof = [g for g in self.grades if g.professor_id == prof_id]
-                    if len(grades_prof) > 0:
-                        self.pendencias.append({
-                            "tipo": "DESLOCAMENTO_PROBLEMATICO",
-                            "severidade": "BAIXA",
-                            "mensagem": f"Professor {professor.nome} tem tempo de deslocamento alto ({professor.tempo_deslocamento}min)",
-                            "sugestao": "Considere alocar aulas do professor em apenas uma sede ou reduzir o tempo de deslocamento",
-                            "professor_id": prof_id
-                        })
+        """
+        DESATIVADA: Analisa se restrições de deslocamento estão causando problemas
+        Campo tempo_deslocamento foi removido do modelo Professor
+        """
+        # Função desativada - tempo_deslocamento removido
+        return
     
     def _calcular_qualidade(self) -> int:
         """Calcula um score de qualidade do horário gerado (0-100)"""

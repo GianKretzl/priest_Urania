@@ -13,6 +13,12 @@ class DiaSemanaEnum(str, enum.Enum):
     SABADO = "SABADO"
 
 
+class TurnoEnum(str, enum.Enum):
+    MATUTINO = "MATUTINO"
+    VESPERTINO = "VESPERTINO"
+    NOTURNO = "NOTURNO"
+
+
 class Disponibilidade(Base):
     __tablename__ = "disponibilidades"
     
@@ -21,9 +27,11 @@ class Disponibilidade(Base):
     professor_id = Column(Integer, ForeignKey("professores.id"), nullable=False)
     
     dia_semana = Column(Enum(DiaSemanaEnum), nullable=False)
+    turno = Column(Enum(TurnoEnum), nullable=True)  # Turno da disponibilidade
     horario_inicio = Column(String, nullable=False)  # Formato: "08:00"
     horario_fim = Column(String, nullable=False)  # Formato: "12:00"
     disponivel = Column(Boolean, default=True)  # True = disponível, False = indisponível
+    dia_nao_trabalha = Column(Boolean, default=False)  # True = professor não trabalha neste dia
     
     # Relacionamentos
     professor = relationship("Professor", back_populates="disponibilidades")
