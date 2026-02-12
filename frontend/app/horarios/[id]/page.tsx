@@ -24,18 +24,23 @@ export default function HorarioDetalhesPage() {
     carregarDados();
   }, [horarioId]);
 
+  useEffect(() => {
+    // Recarregar aulas quando mudar a visualização ou seleção
+    if (selecionado && horario) {
+      carregarAulas();
+    }
+  }, [visualizacao, selecionado]);
+
   const carregarDados = async () => {
     try {
-      const [horarioResp, aulasResp, turmasResp, professoresResp, disciplinasResp] = await Promise.all([
+      const [horarioResp, turmasResp, professoresResp, disciplinasResp] = await Promise.all([
         horarioService.getById(horarioId),
-        horarioService.getAulas(horarioId),
         turmaService.getAll(),
         professorService.getAll(),
         disciplinaService.getAll(),
       ]);
 
       setHorario(horarioResp.data);
-      setAulas(aulasResp.data);
       setTurmas(turmasResp.data);
       setProfessores(professoresResp.data);
       setDisciplinas(disciplinasResp.data);
@@ -49,16 +54,23 @@ export default function HorarioDetalhesPage() {
     }
   };
 
-  const getAula = (dia: string, ordem: number): HorarioAula | undefined => {
-    if (!selecionado) return undefined;
-
-    return aulas.find((aula) => {
-      if (visualizacao === 'turma') {
-        return aula.dia_semana === dia && aula.ordem === ordem + 1 && aula.turma_id === selecionado;
-      } else {
-        return aula.dia_semana === dia && aula.ordem === ordem + 1 && aula.professor_id === selecionado;
+  const carregarAulas = async () => {
+    try {
+      if (visualizacao === 'turma' && selecionado) {
+        const aulasResp = await horarioService.getAulasByTurma(horarioId, selecionado);
+        setAulas(aulasResp.data);
+      } else if (visualizacao === 'professor' && selecionado) {
+        const aulasResp = await horarioService.getAulasByProfessor(horarioId, selecionado);
+        setAulas(aulasResp.data);
       }
-    });
+    } catch (error) {
+      console.error('Erro ao carregar aulas:', error);
+    }
+  };
+
+  const getAula = (dia: string, ordem: number): HorarioAula | undefined => {
+    // As aulas já vêm filtradas pela API
+    return aulas.find((aula) => aula.dia_semana === dia && aula.ordem === ordem + 1);
   };
 
   const getDisciplinaNome = (disciplinaId: number): string => {
@@ -195,26 +207,41 @@ export default function HorarioDetalhesPage() {
                   return (
                     <td key={dia} className="px-4 py-3 text-center">
                       {aula ? (
-                        <div 
-                          className="border rounded p-2 text-xs shadow-sm"
-                          style={{ 
-                            backgroundColor: `${getDisciplinaCor(aula.disciplina_id)}20`,
-                            borderColor: getDisciplinaCor(aula.disciplina_id)
-                          }}
-                        >
-                          <p className="font-semibold text-gray-900">
-                            {getDisciplinaNome(aula.disciplina_id)}
-                          </p>
-                          <p className="text-gray-700 mt-1">
-                            {visualizacao === 'turma' 
-                              ? getProfessorNome(aula.professor_id)
-                              : getTurmaNome(aula.turma_id)
-                            }
-                          </p>
-                          <p className="text-gray-500 text-xs mt-1">
-                            {aula.horario_inicio} - {aula.horario_fim}
-                          </p>
-                        </div>
+                        aula.tipo_aula === 'HORA_ATIVIDADE' ? (
+                          // Renderização especial para Hora Atividade
+                          <div 
+                            className="border rounded p-2 text-xs shadow-sm bg-purple-50 border-purple-300"
+                          >
+                            <p className="font-semibold text-purple-700">
+                              ⏰ Hora Atividade
+                            </p>
+                            <p className="text-purple-600 text-xs mt-1">
+                              {aula.horario_inicio} - {aula.horario_fim}
+                            </p>
+                          </div>
+                        ) : (
+                          // Renderização normal para aulas
+                          <div 
+                            className="border rounded p-2 text-xs shadow-sm"
+                            style={{ 
+                              backgroundColor: `${getDisciplinaCor(aula.disciplina_id || 0)}20`,
+                              borderColor: getDisciplinaCor(aula.disciplina_id || 0)
+                            }}
+                          >
+                            <p className="font-semibold text-gray-900">
+                              {aula.disciplina_id ? getDisciplinaNome(aula.disciplina_id) : 'N/A'}
+                            </p>
+                            <p className="text-gray-700 mt-1">
+                              {visualizacao === 'turma' 
+                                ? getProfessorNome(aula.professor_id)
+                                : (aula.turma_id ? getTurmaNome(aula.turma_id) : 'N/A')
+                              }
+                            </p>
+                            <p className="text-gray-500 text-xs mt-1">
+                              {aula.horario_inicio} - {aula.horario_fim}
+                            </p>
+                          </div>
+                        )
                       ) : (
                         <div className="text-gray-400 text-xs">-</div>
                       )}

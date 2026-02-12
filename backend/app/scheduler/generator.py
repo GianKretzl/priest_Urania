@@ -55,10 +55,26 @@ class HorarioGenerator:
             ("16:35", "17:25"),
             ("17:25", "18:15"),
         ]
+        self.horarios_noite = [
+            ("18:00", "18:50"),
+            ("18:55", "19:45"),
+            ("19:50", "20:40"),
+            ("20:45", "21:35"),
+            ("21:40", "22:30"),
+        ]
         
         # Modelo CP-SAT
         self.model = cp_model.CpModel()
         self.solver = cp_model.CpSolver()
+        
+        # Configurar parâmetros do solver para melhor performance
+        self.solver.parameters.log_search_progress = True
+        self.solver.parameters.num_search_workers = 4  # Usar múltiplos threads
+        
+        # Parâmetros para encontrar solução viável mais rápido
+        # Em vez de buscar a solução ótima, aceita primeirasolução viável boa
+        self.solver.parameters.max_time_in_seconds = 300  # Default 5min
+        self.solver.parameters.relative_gap_limit = 0.05  # Aceita solução com 5% de gap da ótima
         
         # Variáveis do modelo
         self.variaveis = {}
@@ -109,6 +125,44 @@ class HorarioGenerator:
                 self.disponibilidades[disp.professor_id] = []
             self.disponibilidades[disp.professor_id].append(disp)
     
+    def _mapear_horario_para_slots(self, horario_inicio: str, horario_fim: str) -> tuple:
+        """
+        Mapeia um horário de disponibilidade para lista de slots e turno.
+        Retorna: (turno, lista_de_slots)
+        turno: 'MATUTINO', 'VESPERTINO' ou 'NOTURNO'
+        lista_de_slots: lista de índices de slots (0-5 ou 0-4 para noite)
+        """
+        # Converter horário para minutos desde meia-noite
+        def horario_para_minutos(h: str) -> int:
+            partes = h.split(':')
+            return int(partes[0]) * 60 + int(partes[1])
+        
+        inicio_min = horario_para_minutos(horario_inicio)
+        fim_min = horario_para_minutos(horario_fim)
+        
+        # Determinar turno baseado no horário de início
+        if inicio_min < 13 * 60:  # Antes das 13:00 = Manhã
+            turno = "MATUTINO"
+            horarios = self.horarios_manha
+        elif inicio_min < 18 * 60:  # Entre 13:00 e 18:00 = Tarde
+            turno = "VESPERTINO"
+            horarios = self.horarios_tarde
+        else:  # Após 18:00 = Noite
+            turno = "NOTURNO"
+            horarios = self.horarios_noite
+        
+        # Encontrar quais slots devem ser bloqueados
+        slots_bloqueados = []
+        for idx, (slot_inicio, slot_fim) in enumerate(horarios):
+            slot_inicio_min = horario_para_minutos(slot_inicio)
+            slot_fim_min = horario_para_minutos(slot_fim)
+            
+            # Verificar se há sobreposição entre o bloqueio e o slot
+            if not (fim_min <= slot_inicio_min or inicio_min >= slot_fim_min):
+                slots_bloqueados.append(idx)
+        
+        return turno, slots_bloqueados
+    
     def criar_variaveis(self):
         """Cria as variáveis do modelo CP-SAT"""
         # Para cada grade curricular, precisamos alocar aulas
@@ -143,8 +197,10 @@ class HorarioGenerator:
     
     def adicionar_restricoes(self):
         """Adiciona todas as restrições ao modelo"""
+        print(f"Adicionando restrições para {len(self.grades)} grades...")
         
         # 1. Cada aula deve ser alocada exatamente uma vez
+        print("  Restrição 1: Alocação de aulas...")
         for grade in self.grades:
             for aula_num in range(grade.aulas_por_semana):
                 vars_aula = []
@@ -160,6 +216,7 @@ class HorarioGenerator:
                     self.model.Add(sum(vars_aula) == 1)
         
         # 2. Uma turma não pode ter mais de uma aula no mesmo horário
+        print("  Restrição 2: Conflito de turmas...")
         for turma_id in self.turmas:
             for dia_idx in range(len(self.dias_semana)):
                 for slot in range(self.slots_por_dia):
@@ -173,11 +230,14 @@ class HorarioGenerator:
                                         vars_conflito.append(self.variaveis[var_name])
                     
                     # No máximo 1 aula por turma por slot
-                    if vars_conflito:
+                    if vars_conflito and len(vars_conflito) > 1:
                         self.model.Add(sum(vars_conflito) <= 1)
         
         # 3. Um professor não pode dar mais de uma aula no mesmo horário (incluindo horas atividade)
-        for prof_id in self.professores:
+        print("  Restrição 3: Conflito de professores...")
+        for idx, prof_id in enumerate(self.professores):
+            if idx % 10 == 0:
+                print(f"    Professor {idx+1}/{len(self.professores)}")
             for dia_idx in range(len(self.dias_semana)):
                 for slot in range(self.slots_por_dia):
                     vars_conflito = []
@@ -208,10 +268,11 @@ class HorarioGenerator:
                                 # unallocated não conflita com horário (não representa um slot)
                                 pass
                     
-                    if vars_conflito:
+                    if vars_conflito and len(vars_conflito) > 1:
                         self.model.Add(sum(vars_conflito) <= 1)
         
         # 4. Um ambiente não pode ser usado por mais de uma turma ao mesmo tempo
+        print("  Restrição 4: Conflito de ambientes...")
         for ambiente in self.ambientes:
             for dia_idx in range(len(self.dias_semana)):
                 for slot in range(self.slots_por_dia):
@@ -222,10 +283,11 @@ class HorarioGenerator:
                             if var_name in self.variaveis:
                                 vars_conflito.append(self.variaveis[var_name])
                     
-                    if vars_conflito:
+                    if vars_conflito and len(vars_conflito) > 1:
                         self.model.Add(sum(vars_conflito) <= 1)
         
         # 5. Cada hora atividade deve ser alocada exatamente uma vez (inclui opção unallocated)
+        print("  Restrição 5: Horas atividade...")
         for prof_id, professor in self.professores.items():
             if professor.horas_atividade > 0:
                 duracao_slot_horas = self.duracao_aula / 60.0
@@ -239,7 +301,11 @@ class HorarioGenerator:
                         self.model.Add(sum(vars_hora_atividade) == 1)
         
         # 6. Respeitar disponibilidade dos professores
+        print("  Restrição 6: Disponibilidade dos professores...")
         self._adicionar_restricoes_disponibilidade()
+        
+        print("  Restrições adicionadas com sucesso!")
+        print(f"  Total de variáveis: {len(self.variaveis)}")
         
         # 6-9: Restrições de qualidade temporariamente desabilitadas para debugging
         # TODO: Reativar após garantir que o modelo básico funciona
@@ -250,24 +316,71 @@ class HorarioGenerator:
     
     def _adicionar_restricoes_disponibilidade(self):
         """Respeita os horários de disponibilidade dos professores"""
+        print(f"    Processando disponibilidades de {len(self.disponibilidades)} professores...")
+        
         for prof_id, disponibilidades in self.disponibilidades.items():
             for disp in disponibilidades:
                 if not disp.disponivel:  # Professor NÃO disponível
                     dia_idx = self.dias_semana.index(disp.dia_semana)
-                    # Determinar quais slots correspondem a este horário
-                    # Simplificado: marcar todos os slots do dia
-                    for slot in range(self.slots_por_dia):
-                        vars_bloqueio = []
-                        for grade in self.grades:
-                            if grade.professor_id == prof_id:
-                                for aula_num in range(grade.aulas_por_semana):
-                                    for ambiente in self.ambientes:
-                                        var_name = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot}_amb{ambiente.id}"
-                                        if var_name in self.variaveis:
-                                            vars_bloqueio.append(self.variaveis[var_name])
+                    
+                    # Verificar se é bloqueio de dia inteiro
+                    if disp.horario_inicio == "00:00" and disp.horario_fim == "23:59":
+                        # Bloquear dia inteiro - todos os slots
+                        for slot in range(self.slots_por_dia):
+                            vars_bloqueio = []
+                            for grade in self.grades:
+                                if grade.professor_id == prof_id:
+                                    for aula_num in range(grade.aulas_por_semana):
+                                        for ambiente in self.ambientes:
+                                            var_name = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot}_amb{ambiente.id}"
+                                            if var_name in self.variaveis:
+                                                vars_bloqueio.append(self.variaveis[var_name])
+                            
+                            # Também bloquear horas atividade neste slot
+                            professor = self.professores.get(prof_id)
+                            if professor and professor.horas_atividade > 0:
+                                duracao_slot_horas = self.duracao_aula / 60.0
+                                num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
+                                for hora_num in range(num_slots_atividade):
+                                    for turno in ["MATUTINO", "VESPERTINO", "NOTURNO"]:
+                                        var_name = f"ha_p{prof_id}_h{hora_num}_t{turno}_d{dia_idx}_s{slot}"
+                                        if var_name in self.variaveis_horas_atividade:
+                                            vars_bloqueio.append(self.variaveis_horas_atividade[var_name])
+                            
+                            if vars_bloqueio:
+                                self.model.Add(sum(vars_bloqueio) == 0)
+                    else:
+                        # Bloqueio de horário específico
+                        turno_bloqueado, slots_bloqueados = self._mapear_horario_para_slots(
+                            disp.horario_inicio, disp.horario_fim
+                        )
                         
-                        if vars_bloqueio:
-                            self.model.Add(sum(vars_bloqueio) == 0)
+                        # Bloquear apenas grades de turmas do mesmo turno
+                        for slot in slots_bloqueados:
+                            vars_bloqueio = []
+                            for grade in self.grades:
+                                if grade.professor_id == prof_id:
+                                    # Verificar se a turma da grade tem o mesmo turno do bloqueio
+                                    turma = self.turmas.get(grade.turma_id)
+                                    if turma and turma.turno == turno_bloqueado:
+                                        for aula_num in range(grade.aulas_por_semana):
+                                            for ambiente in self.ambientes:
+                                                var_name = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot}_amb{ambiente.id}"
+                                                if var_name in self.variaveis:
+                                                    vars_bloqueio.append(self.variaveis[var_name])
+                            
+                            # Também bloquear horas atividade do turno correspondente neste slot
+                            professor = self.professores.get(prof_id)
+                            if professor and professor.horas_atividade > 0:
+                                duracao_slot_horas = self.duracao_aula / 60.0
+                                num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
+                                for hora_num in range(num_slots_atividade):
+                                    var_name = f"ha_p{prof_id}_h{hora_num}_t{turno_bloqueado}_d{dia_idx}_s{slot}"
+                                    if var_name in self.variaveis_horas_atividade:
+                                        vars_bloqueio.append(self.variaveis_horas_atividade[var_name])
+                            
+                            if vars_bloqueio:
+                                self.model.Add(sum(vars_bloqueio) == 0)
     
     def _adicionar_restricoes_aulas_seguidas(self):
         """Limita o número de aulas seguidas por professor"""
@@ -347,54 +460,26 @@ class HorarioGenerator:
         """Define a função objetivo para otimização"""
         penalidades = []
         
-        # 1. Minimizar janelas (horários vagos) dos professores
-        for prof_id in self.professores:
-            for dia_idx in range(len(self.dias_semana)):
-                # Para cada sequência de 3 slots, penalizar se tiver aula no início e fim mas não no meio
-                for slot in range(self.slots_por_dia - 2):
-                    vars_inicio = []
-                    vars_meio = []
-                    vars_fim = []
-                    
-                    for grade in self.grades:
-                        if grade.professor_id == prof_id:
-                            for aula_num in range(grade.aulas_por_semana):
-                                for ambiente in self.ambientes:
-                                    var_inicio = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot}_amb{ambiente.id}"
-                                    var_meio = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot+1}_amb{ambiente.id}"
-                                    var_fim = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot+2}_amb{ambiente.id}"
-                                    
-                                    if var_inicio in self.variaveis:
-                                        vars_inicio.append(self.variaveis[var_inicio])
-                                    if var_meio in self.variaveis:
-                                        vars_meio.append(self.variaveis[var_meio])
-                                    if var_fim in self.variaveis:
-                                        vars_fim.append(self.variaveis[var_fim])
-                    
-                    # Criar variável de penalidade para janela
-                    if vars_inicio and vars_meio and vars_fim:
-                        janela_var = self.model.NewBoolVar(f"janela_p{prof_id}_d{dia_idx}_s{slot}")
-                        # Janela = (início OR fim) AND NOT meio
-                        # Simplificado: somar penalidades
-                        penalidades.append(janela_var)
+        # SIMPLIFICADO: Focar apenas em alocar todas as aulas e horas atividade
+        # Objetivos secundários (janelas, contraturno) podem ser refinados depois
         
-        # 2. Priorizar alocação de horas atividade em contraturno e penalizar não alocadas
+        # Priorizar alocação de horas atividade
         for prof_id, professor in self.professores.items():
             if professor.horas_atividade > 0:
                 duracao_slot_horas = self.duracao_aula / 60.0
                 num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
 
                 for hora_num in range(num_slots_atividade):
-                    # Penalidade pesada para opção "unallocated" (desincentivar deixar sem horário)
+                    # Penalidade para opção "unallocated"
                     unalloc_name = f"ha_p{prof_id}_h{hora_num}_unallocated"
                     if unalloc_name in self.variaveis_horas_atividade:
                         pen_unalloc = self.model.NewBoolVar(f"pen_{unalloc_name}")
                         self.model.Add(pen_unalloc == self.variaveis_horas_atividade[unalloc_name])
-                        # Peso alto para forçar alocação quando possível
-                        for _ in range(50):
+                        # Peso para forçar alocação
+                        for _ in range(10):  # Reduzido de 50 para 10
                             penalidades.append(pen_unalloc)
 
-                    # Se gerando para um turno específico, penalizar alocações de horas-atividade nesse mesmo turno
+                    # Se gerando para turno específico, leve preferência por contraturno
                     if self.turno_filtro:
                         for dia_idx in range(len(self.dias_semana)):
                             for slot in range(self.slots_por_dia):
@@ -402,9 +487,8 @@ class HorarioGenerator:
                                 if var_name in self.variaveis_horas_atividade:
                                     pen = self.model.NewBoolVar(f"pen_{var_name}")
                                     self.model.Add(pen == self.variaveis_horas_atividade[var_name])
-                                    # Penalidade moderada para desencorajar horas-atividade no turno principal
-                                    for _ in range(5):
-                                        penalidades.append(pen)
+                                    # Penalidade leve
+                                    penalidades.append(pen)
         
         # Minimizar penalidades
         if penalidades:
@@ -414,9 +498,17 @@ class HorarioGenerator:
         """Resolve o problema de otimização"""
         self.solver.parameters.max_time_in_seconds = tempo_maximo
         
+        print(f"Iniciando resolução do problema...")
+        print(f"  Tempo máximo: {tempo_maximo} segundos")
+        print(f"  Total de variáveis: {len(self.variaveis)}")
+        print(f"  Aguarde...")
+        
         inicio = time.time()
         status = self.solver.Solve(self.model)
         tempo_decorrido = time.time() - inicio
+        
+        print(f"Resolução concluída em {tempo_decorrido:.2f} segundos")
+        print(f"  Status: {status}")
         
         return status, tempo_decorrido
     

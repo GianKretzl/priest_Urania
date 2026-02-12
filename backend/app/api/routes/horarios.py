@@ -37,13 +37,18 @@ def obter_horario(horario_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{horario_id}/aulas", response_model=List[HorarioAulaSchema])
-def listar_aulas_horario(horario_id: int, db: Session = Depends(get_db)):
+def listar_aulas_horario(horario_id: int, incluir_horas_atividade: bool = False, db: Session = Depends(get_db)):
     # Verificar se horário existe
     horario = db.query(HorarioModel).filter(HorarioModel.id == horario_id).first()
     if not horario:
         raise HTTPException(status_code=404, detail="Horário não encontrado")
     
-    aulas = db.query(HorarioAula).filter(HorarioAula.horario_id == horario_id).all()
+    # Filtrar aulas (excluir horas atividade por padrão)
+    query = db.query(HorarioAula).filter(HorarioAula.horario_id == horario_id)
+    if not incluir_horas_atividade:
+        query = query.filter(HorarioAula.turma_id.isnot(None))
+    
+    aulas = query.all()
     return aulas
 
 
@@ -57,11 +62,18 @@ def listar_aulas_por_turma(horario_id: int, turma_id: int, db: Session = Depends
 
 
 @router.get("/{horario_id}/professor/{professor_id}", response_model=List[HorarioAulaSchema])
-def listar_aulas_por_professor(horario_id: int, professor_id: int, db: Session = Depends(get_db)):
-    aulas = db.query(HorarioAula).filter(
+def listar_aulas_por_professor(horario_id: int, professor_id: int, incluir_horas_atividade: bool = True, db: Session = Depends(get_db)):
+    """Lista aulas de um professor, incluindo horas atividade por padrão"""
+    query = db.query(HorarioAula).filter(
         HorarioAula.horario_id == horario_id,
         HorarioAula.professor_id == professor_id
-    ).order_by(HorarioAula.dia_semana, HorarioAula.ordem).all()
+    )
+    
+    # Por padrão, incluir horas atividade na visualização por professor
+    if not incluir_horas_atividade:
+        query = query.filter(HorarioAula.turma_id.isnot(None))
+    
+    aulas = query.order_by(HorarioAula.dia_semana, HorarioAula.ordem).all()
     return aulas
 
 

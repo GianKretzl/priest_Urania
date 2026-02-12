@@ -134,7 +134,7 @@ export interface Horario {
   data_atualizacao: string;
   total_aulas: number;
   aulas_alocadas: number;
-  pendencias: any[];
+  pendencias: Array<any>;
   qualidade_score: number;
   tem_conflitos: boolean;
 }
@@ -142,14 +142,16 @@ export interface Horario {
 export interface HorarioAula {
   id: number;
   horario_id: number;
-  turma_id: number;
-  disciplina_id: number;
+  turma_id: number | null;
+  disciplina_id: number | null;
   professor_id: number;
-  ambiente_id: number;
+  professor_id_2: number | null;
+  ambiente_id: number | null;
   dia_semana: 'SEGUNDA' | 'TERCA' | 'QUARTA' | 'QUINTA' | 'SEXTA';
   horario_inicio: string;
   horario_fim: string;
   ordem: number;
+  tipo_aula: 'AULA_NORMAL' | 'HORA_ATIVIDADE';
 }
 
 // Serviços de API

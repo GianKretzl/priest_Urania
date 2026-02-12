@@ -27,6 +27,11 @@ class DiaSemanaEnum(str, Enum):
     SEXTA = "SEXTA"
 
 
+class TipoAulaEnum(str, Enum):
+    AULA_NORMAL = "AULA_NORMAL"
+    HORA_ATIVIDADE = "HORA_ATIVIDADE"
+
+
 class StatusHorarioEnum(str, Enum):
     RASCUNHO = "RASCUNHO"
     EM_PROGRESSO = "EM_PROGRESSO"
@@ -295,15 +300,16 @@ class Horario(HorarioBase):
 # HorarioAula Schemas
 class HorarioAulaBase(BaseModel):
     horario_id: int
-    turma_id: int
-    disciplina_id: int
+    turma_id: Optional[int] = None  # None para horas atividade
+    disciplina_id: Optional[int] = None  # None para horas atividade
     professor_id: int
     professor_id_2: Optional[int] = None
-    ambiente_id: int
+    ambiente_id: Optional[int] = None  # None para horas atividade
     dia_semana: DiaSemanaEnum
     horario_inicio: str
     horario_fim: str
     ordem: int
+    tipo_aula: TipoAulaEnum = TipoAulaEnum.AULA_NORMAL
 
 
 class HorarioAulaCreate(HorarioAulaBase):

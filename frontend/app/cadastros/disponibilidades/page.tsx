@@ -243,7 +243,7 @@ export default function DisponibilidadesPage() {
                  d.turno === turno && d.disponivel === false && !d.dia_nao_trabalha
           );
           if (!indisponivel) {
-            horasDisponiveis += 0.833; // ~50min = 0.833h
+            horasDisponiveis += 1.0; // Cada aula disponível = 1h
           }
         });
       }
