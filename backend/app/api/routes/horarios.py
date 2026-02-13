@@ -125,7 +125,8 @@ def gerar_horario(
             aulas_alocadas=horario.aulas_alocadas,
             pendencias=horario.pendencias,
             qualidade_score=horario.qualidade_score,
-            tempo_geracao=0
+            tempo_geracao=0,
+            tempo_maximo=request.tempo_maximo_geracao
         )
     
     # Atualizar status

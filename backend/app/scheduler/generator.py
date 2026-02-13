@@ -72,9 +72,12 @@ class HorarioGenerator:
         self.solver.parameters.num_search_workers = 4  # Usar múltiplos threads
         
         # Parâmetros para encontrar solução viável mais rápido
-        # Em vez de buscar a solução ótima, aceita primeirasolução viável boa
+        # Em vez de buscar a solução ótima, aceita primeira solução viável boa
         self.solver.parameters.max_time_in_seconds = 300  # Default 5min
         self.solver.parameters.relative_gap_limit = 0.05  # Aceita solução com 5% de gap da ótima
+        
+        # Hints para guiar a busca
+        self.hints_added = False
         
         # Variáveis do modelo
         self.variaveis = {}
@@ -174,6 +177,10 @@ class HorarioGenerator:
                             # Variável booleana: aula está alocada neste dia/slot/ambiente?
                             var_name = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot}_amb{ambiente.id}"
                             self.variaveis[var_name] = self.model.NewBoolVar(var_name)
+                
+                # Variável especial: aula não foi alocada (permite flexibilidade)
+                unalloc_name = f"g{grade.id}_a{aula_num}_unallocated"
+                self.variaveis[unalloc_name] = self.model.NewBoolVar(unalloc_name)
         
         # Criar variáveis para horas atividade dos professores
         for prof_id, professor in self.professores.items():
@@ -199,8 +206,8 @@ class HorarioGenerator:
         """Adiciona todas as restrições ao modelo"""
         print(f"Adicionando restrições para {len(self.grades)} grades...")
         
-        # 1. Cada aula deve ser alocada exatamente uma vez
-        print("  Restrição 1: Alocação de aulas...")
+        # 1. Cada aula deve ser alocada no máximo uma vez (permite não alocação)
+        print("  Restrição 1: Alocação de aulas (flexível)...")
         for grade in self.grades:
             for aula_num in range(grade.aulas_por_semana):
                 vars_aula = []
@@ -211,7 +218,12 @@ class HorarioGenerator:
                             if var_name in self.variaveis:
                                 vars_aula.append(self.variaveis[var_name])
                 
-                # Exatamente uma alocação por aula
+                # Incluir variável de não alocação
+                unalloc_name = f"g{grade.id}_a{aula_num}_unallocated"
+                if unalloc_name in self.variaveis:
+                    vars_aula.append(self.variaveis[unalloc_name])
+                
+                # Exatamente uma opção: alocada EM um slot OU não alocada
                 if vars_aula:
                     self.model.Add(sum(vars_aula) == 1)
         
@@ -319,68 +331,136 @@ class HorarioGenerator:
         print(f"    Processando disponibilidades de {len(self.disponibilidades)} professores...")
         
         for prof_id, disponibilidades in self.disponibilidades.items():
-            for disp in disponibilidades:
-                if not disp.disponivel:  # Professor NÃO disponível
-                    dia_idx = self.dias_semana.index(disp.dia_semana)
-                    
-                    # Verificar se é bloqueio de dia inteiro
-                    if disp.horario_inicio == "00:00" and disp.horario_fim == "23:59":
-                        # Bloquear dia inteiro - todos os slots
-                        for slot in range(self.slots_por_dia):
-                            vars_bloqueio = []
-                            for grade in self.grades:
-                                if grade.professor_id == prof_id:
+            # Separar disponibilidades positivas e negativas
+            disp_positivas = [d for d in disponibilidades if d.disponivel]
+            disp_negativas = [d for d in disponibilidades if not d.disponivel]
+            
+            # Se há disponibilidades POSITIVAS, permitir APENAS esses horários
+            if disp_positivas:
+                print(f"      Professor {prof_id}: aplicando {len(disp_positivas)} disponibilidade(s) positiva(s)")
+                self._aplicar_disponibilidades_positivas(prof_id, disp_positivas)
+            
+            # Se há disponibilidades NEGATIVAS, bloquear esses horários
+            if disp_negativas:
+                print(f"      Professor {prof_id}: aplicando {len(disp_negativas)} bloqueio(s)")
+                self._aplicar_disponibilidades_negativas(prof_id, disp_negativas)
+    
+    def _aplicar_disponibilidades_positivas(self, prof_id: int, disponibilidades: list):
+        """Permite APENAS os horários marcados como disponíveis"""
+        # Criar conjunto de slots permitidos por dia e turno
+        slots_permitidos = {}  # {dia_idx: {turno: [slots]}}
+        
+        for disp in disponibilidades:
+            dia_idx = self.dias_semana.index(disp.dia_semana)
+            turno, slots = self._mapear_horario_para_slots(disp.horario_inicio, disp.horario_fim)
+            
+            if dia_idx not in slots_permitidos:
+                slots_permitidos[dia_idx] = {}
+            if turno not in slots_permitidos[dia_idx]:
+                slots_permitidos[dia_idx][turno] = []
+            
+            slots_permitidos[dia_idx][turno].extend(slots)
+        
+        # Bloquear todos os slots que NÃO estão na lista de permitidos
+        for dia_idx in range(len(self.dias_semana)):
+            for turno in ["MATUTINO", "VESPERTINO", "NOTURNO"]:
+                slots_permitidos_turno = slots_permitidos.get(dia_idx, {}).get(turno, [])
+                
+                for slot in range(self.slots_por_dia):
+                    # Se este slot não está permitido, bloquear
+                    if slot not in slots_permitidos_turno:
+                        vars_bloqueio = []
+                        
+                        # Bloquear aulas regulares
+                        for grade in self.grades:
+                            if grade.professor_id == prof_id or (hasattr(grade, 'professor_id_2') and grade.professor_id_2 == prof_id):
+                                turma = self.turmas.get(grade.turma_id)
+                                if turma and turma.turno == turno:
                                     for aula_num in range(grade.aulas_por_semana):
                                         for ambiente in self.ambientes:
                                             var_name = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot}_amb{ambiente.id}"
                                             if var_name in self.variaveis:
                                                 vars_bloqueio.append(self.variaveis[var_name])
-                            
-                            # Também bloquear horas atividade neste slot
-                            professor = self.professores.get(prof_id)
-                            if professor and professor.horas_atividade > 0:
-                                duracao_slot_horas = self.duracao_aula / 60.0
-                                num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
-                                for hora_num in range(num_slots_atividade):
-                                    for turno in ["MATUTINO", "VESPERTINO", "NOTURNO"]:
-                                        var_name = f"ha_p{prof_id}_h{hora_num}_t{turno}_d{dia_idx}_s{slot}"
-                                        if var_name in self.variaveis_horas_atividade:
-                                            vars_bloqueio.append(self.variaveis_horas_atividade[var_name])
-                            
-                            if vars_bloqueio:
-                                self.model.Add(sum(vars_bloqueio) == 0)
-                    else:
-                        # Bloqueio de horário específico
-                        turno_bloqueado, slots_bloqueados = self._mapear_horario_para_slots(
-                            disp.horario_inicio, disp.horario_fim
-                        )
                         
-                        # Bloquear apenas grades de turmas do mesmo turno
-                        for slot in slots_bloqueados:
-                            vars_bloqueio = []
-                            for grade in self.grades:
-                                if grade.professor_id == prof_id:
-                                    # Verificar se a turma da grade tem o mesmo turno do bloqueio
-                                    turma = self.turmas.get(grade.turma_id)
-                                    if turma and turma.turno == turno_bloqueado:
-                                        for aula_num in range(grade.aulas_por_semana):
-                                            for ambiente in self.ambientes:
-                                                var_name = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot}_amb{ambiente.id}"
-                                                if var_name in self.variaveis:
-                                                    vars_bloqueio.append(self.variaveis[var_name])
-                            
-                            # Também bloquear horas atividade do turno correspondente neste slot
-                            professor = self.professores.get(prof_id)
-                            if professor and professor.horas_atividade > 0:
-                                duracao_slot_horas = self.duracao_aula / 60.0
-                                num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
-                                for hora_num in range(num_slots_atividade):
-                                    var_name = f"ha_p{prof_id}_h{hora_num}_t{turno_bloqueado}_d{dia_idx}_s{slot}"
-                                    if var_name in self.variaveis_horas_atividade:
-                                        vars_bloqueio.append(self.variaveis_horas_atividade[var_name])
-                            
-                            if vars_bloqueio:
-                                self.model.Add(sum(vars_bloqueio) == 0)
+                        # Bloquear horas atividade
+                        professor = self.professores.get(prof_id)
+                        if professor and professor.horas_atividade > 0:
+                            duracao_slot_horas = self.duracao_aula / 60.0
+                            num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
+                            for hora_num in range(num_slots_atividade):
+                                var_name = f"ha_p{prof_id}_h{hora_num}_t{turno}_d{dia_idx}_s{slot}"
+                                if var_name in self.variaveis_horas_atividade:
+                                    vars_bloqueio.append(self.variaveis_horas_atividade[var_name])
+                        
+                        if vars_bloqueio:
+                            self.model.Add(sum(vars_bloqueio) == 0)
+    
+    def _aplicar_disponibilidades_negativas(self, prof_id: int, disponibilidades: list):
+        """Bloqueia os horários marcados como indisponíveis"""
+        for disp in disponibilidades:
+            dia_idx = self.dias_semana.index(disp.dia_semana)
+            
+            # Verificar se é bloqueio de dia inteiro
+            if disp.horario_inicio == "00:00" and disp.horario_fim == "23:59":
+                # Bloquear dia inteiro - todos os turnos e slots
+                for turno in ["MATUTINO", "VESPERTINO", "NOTURNO"]:
+                    for slot in range(self.slots_por_dia):
+                        vars_bloqueio = []
+                        
+                        for grade in self.grades:
+                            if grade.professor_id == prof_id or (hasattr(grade, 'professor_id_2') and grade.professor_id_2 == prof_id):
+                                turma = self.turmas.get(grade.turma_id)
+                                if turma and turma.turno == turno:
+                                    for aula_num in range(grade.aulas_por_semana):
+                                        for ambiente in self.ambientes:
+                                            var_name = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot}_amb{ambiente.id}"
+                                            if var_name in self.variaveis:
+                                                vars_bloqueio.append(self.variaveis[var_name])
+                        
+                        # Também bloquear horas atividade neste slot
+                        professor = self.professores.get(prof_id)
+                        if professor and professor.horas_atividade > 0:
+                            duracao_slot_horas = self.duracao_aula / 60.0
+                            num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
+                            for hora_num in range(num_slots_atividade):
+                                var_name = f"ha_p{prof_id}_h{hora_num}_t{turno}_d{dia_idx}_s{slot}"
+                                if var_name in self.variaveis_horas_atividade:
+                                    vars_bloqueio.append(self.variaveis_horas_atividade[var_name])
+                        
+                        if vars_bloqueio:
+                            self.model.Add(sum(vars_bloqueio) == 0)
+            else:
+                # Bloqueio de horário específico
+                turno_bloqueado, slots_bloqueados = self._mapear_horario_para_slots(
+                    disp.horario_inicio, disp.horario_fim
+                )
+                
+                # Bloquear apenas grades de turmas do mesmo turno
+                for slot in slots_bloqueados:
+                    vars_bloqueio = []
+                    for grade in self.grades:
+                        if grade.professor_id == prof_id or (hasattr(grade, 'professor_id_2') and grade.professor_id_2 == prof_id):
+                            # Verificar se a turma da grade tem o mesmo turno do bloqueio
+                            turma = self.turmas.get(grade.turma_id)
+                            if turma and turma.turno == turno_bloqueado:
+                                for aula_num in range(grade.aulas_por_semana):
+                                    for ambiente in self.ambientes:
+                                        var_name = f"g{grade.id}_a{aula_num}_d{dia_idx}_s{slot}_amb{ambiente.id}"
+                                        if var_name in self.variaveis:
+                                            vars_bloqueio.append(self.variaveis[var_name])
+                    
+                    # Também bloquear horas atividade do turno correspondente neste slot
+                    professor = self.professores.get(prof_id)
+                    if professor and professor.horas_atividade > 0:
+                        duracao_slot_horas = self.duracao_aula / 60.0
+                        num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
+                        for hora_num in range(num_slots_atividade):
+                            var_name = f"ha_p{prof_id}_h{hora_num}_t{turno_bloqueado}_d{dia_idx}_s{slot}"
+                            if var_name in self.variaveis_horas_atividade:
+                                vars_bloqueio.append(self.variaveis_horas_atividade[var_name])
+                    
+                    if vars_bloqueio:
+                        self.model.Add(sum(vars_bloqueio) == 0)
     
     def _adicionar_restricoes_aulas_seguidas(self):
         """Limita o número de aulas seguidas por professor"""
@@ -456,12 +536,115 @@ class HorarioGenerator:
         # Função desativada - tempo_deslocamento removido
         return
     
+    def _adicionar_hints_gulosos(self):
+        """Adiciona hints baseados em uma alocação gulosa simples para guiar o solver"""
+        print("  Gerando hints gulosos para acelerar busca...")
+        
+        # Tentar alocação gulosa simples: para cada grade, alocar na primeira posição disponível
+        alocados = []  # (grade_id, dia_idx, slot, ambiente_id)
+        slots_usados_turma = {}  # (turma_id, dia_idx, slot) -> True
+        slots_usados_prof = {}  # (prof_id, dia_idx, slot) -> True
+        slots_usados_amb = {}  # (ambiente_id, dia_idx, slot) -> True
+        
+        for grade in self.grades:
+            turma = self.turmas.get(grade.turma_id)
+            if not turma:
+                continue
+            
+            aulas_alocadas = 0
+            for aula_num in range(grade.aulas_por_semana):
+                alocado = False
+                
+                # Tentar alocar em qualquer dia/slot/ambiente disponível
+                for dia_idx in range(len(self.dias_semana)):
+                    if alocado:
+                        break
+                    for slot in range(self.slots_por_dia):
+                        if alocado:
+                            break
+                        
+                        # Verificar se turma está livre
+                        if (grade.turma_id, dia_idx, slot) in slots_usados_turma:
+                            continue
+                        
+                        # Verificar se professor está livre
+                        if (grade.professor_id, dia_idx, slot) in slots_usados_prof:
+                            continue
+                        
+                        # Verificar disponibilidade do professor
+                        if not self._professor_disponivel(grade.professor_id, dia_idx, slot, turma.turno):
+                            continue
+                        
+                        # Tentar encontrar ambiente livre
+                        for ambiente in self.ambientes:
+                            if (ambiente.id, dia_idx, slot) in slots_usados_amb:
+                                continue
+                            
+                            # Encontrou uma alocação válida!
+                            alocados.append((grade.id, aula_num, dia_idx, slot, ambiente.id))
+                            slots_usados_turma[(grade.turma_id, dia_idx, slot)] = True
+                            slots_usados_prof[(grade.professor_id, dia_idx, slot)] = True
+                            slots_usados_amb[(ambiente.id, dia_idx, slot)] = True
+                            alocado = True
+                            aulas_alocadas += 1
+                            break
+        
+        # Adicionar hints ao modelo
+        hints_count = 0
+        for grade_id, aula_num, dia_idx, slot, ambiente_id in alocados:
+            var_name = f"g{grade_id}_a{aula_num}_d{dia_idx}_s{slot}_amb{ambiente_id}"
+            if var_name in self.variaveis:
+                self.model.AddHint(self.variaveis[var_name], 1)
+                hints_count += 1
+        
+        print(f"  {hints_count} hints adicionados ({100*hints_count/len(alocados):.1f}% das alocações gulosas)")
+        self.hints_added = True
+    
+    def _professor_disponivel(self, prof_id, dia_idx, slot, turno):
+        """Verifica se professor está disponível neste slot (para hints)"""
+        if prof_id not in self.disponibilidades:
+            return True
+        
+        dia = self.dias_semana[dia_idx]
+        for disp in self.disponibilidades[prof_id]:
+            if disp.dia_semana and str(disp.dia_semana.value if hasattr(disp.dia_semana, 'value') else disp.dia_semana) != dia:
+                continue
+            
+            # Bloqueio de dia inteiro
+            if str(disp.horario_inicio) == "00:00:00" and str(disp.horario_fim) == "23:59:00":
+                return False
+            
+            # Bloqueio de horário específico
+            turno_bloqueado, slots_bloqueados = self._mapear_horario_para_slots(
+                disp.horario_inicio, disp.horario_fim
+            )
+            
+            if turno_bloqueado == turno and slot in slots_bloqueados:
+                return False
+        
+        return True
+    
     def adicionar_objetivos(self):
         """Define a função objetivo para otimização"""
         penalidades = []
         
         # SIMPLIFICADO: Focar apenas em alocar todas as aulas e horas atividade
         # Objetivos secundários (janelas, contraturno) podem ser refinados depois
+        
+        # !!! PRIORIDADE MÁXIMA: Minimizar aulas não alocadas !!!
+        for grade in self.grades:
+            for aula_num in range(grade.aulas_por_semana):
+                unalloc_name = f"g{grade.id}_a{aula_num}_unallocated"
+                if unalloc_name in self.variaveis:
+                    pen_aula_unalloc = self.model.NewBoolVar(f"pen_{unalloc_name}")
+                    self.model.Add(pen_aula_unalloc == self.variaveis[unalloc_name])
+                    # Penalidade MUITO ALTA para aulas não alocadas (100x mais que horas atividade)
+                    for _ in range(1000):
+                        penalidades.append(pen_aula_unalloc)
+        
+        #  Adicionar hints gulosos antes de definir objetivos
+        if not self.hints_added:
+            self._adicionar_hints_gulosos()
         
         # Priorizar alocação de horas atividade
         for prof_id, professor in self.professores.items():
@@ -520,10 +703,30 @@ class HorarioGenerator:
         ).delete()
         
         aulas_criadas = 0
+        aulas_nao_alocadas = []
         
         # Extrair valores das variáveis
         for var_name, var in self.variaveis.items():
-            if self.solver.Value(var) == 1:
+            # Verificar aulas não alocadas primeiro
+            if "_unallocated" in var_name and self.solver.Value(var) == 1:
+                # Formato: g{grade_id}_a{aula_num}_unallocated
+                parts = var_name.split('_')
+                grade_id = int(parts[0][1:])
+                aula_num = int(parts[1][1:])
+                
+                grade = next((g for g in self.grades if g.id == grade_id), None)
+                if grade:
+                    turma = self.turmas.get(grade.turma_id)
+                    aulas_nao_alocadas.append({
+                        "grade_id": grade_id,
+                        "turma": turma.nome if turma else "Desconhecida",
+                        "disciplina_id": grade.disciplina_id,
+                        "professor_id": grade.professor_id,
+                        "aula_num": aula_num + 1
+                    })
+                continue
+            
+            if self.solver.Value(var) == 1 and "_unallocated" not in var_name:
                 # Parse do nome da variável
                 # Formato: g{grade_id}_a{aula_num}_d{dia_idx}_s{slot}_amb{ambiente_id}
                 parts = var_name.split('_')
@@ -621,6 +824,29 @@ class HorarioGenerator:
             )
             self.db.add(aula_ha)
         
+        # Registrar pendências de aulas não alocadas
+        if aulas_nao_alocadas:
+            for aula_info in aulas_nao_alocadas:
+                grade = next((g for g in self.grades if g.id == aula_info['grade_id']), None)
+                if grade:
+                    professor = self.professores.get(grade.professor_id)
+                    turma = self.turmas.get(grade.turma_id)
+                    
+                    # Buscar disciplina pelo ID
+                    from app.models.disciplina import Disciplina
+                    disciplina = self.db.query(Disciplina).filter(Disciplina.id == grade.disciplina_id).first()
+                    
+                    self.pendencias.append({
+                        "tipo": "AULA_NAO_ALOCADA",
+                        "severidade": "ALTA",
+                        "mensagem": f"Aula de {disciplina.nome if disciplina else 'disciplina desconhecida'} para turma {turma.nome if turma else 'desconhecida'} não pôde ser alocada",
+                        "detalhes": f"Professor: {professor.nome if professor else 'desconhecido'} - Aula {aula_info['aula_num']}/{grade.aulas_por_semana}",
+                        "sugestao": "Amplie os horários disponíveis do professor ou redistribua as aulas",
+                        "turma_id": grade.turma_id,
+                        "disciplina_id": grade.disciplina_id,
+                        "professor_id": grade.professor_id
+                    })
+        
         # Atualizar estatísticas do horário
         total_aulas = sum(g.aulas_por_semana for g in self.grades)
         self.horario.total_aulas = total_aulas
@@ -696,27 +922,90 @@ class HorarioGenerator:
         """Analisa se falta de disponibilidade está causando problemas"""
         for prof_id, professor in self.professores.items():
             # Contar grades do professor
-            grades_prof = [g for g in self.grades if g.professor_id == prof_id]
+            grades_prof = [g for g in self.grades if g.professor_id == prof_id or (hasattr(g, 'professor_id_2') and g.professor_id_2 == prof_id)]
             if not grades_prof:
                 continue
             
             total_aulas_prof = sum(g.aulas_por_semana for g in grades_prof)
             
-            # Contar horários disponíveis
+            # Verificar disponibilidades do professor
             if prof_id in self.disponibilidades:
-                slots_bloqueados = 0
-                for disp in self.disponibilidades[prof_id]:
-                    if not disp.disponivel:
-                        slots_bloqueados += self.slots_por_dia  # Simplificado
+                disp_positivas = [d for d in self.disponibilidades[prof_id] if d.disponivel]
+                disp_negativas = [d for d in self.disponibilidades[prof_id] if not d.disponivel]
                 
-                slots_disponiveis = len(self.dias_semana) * self.slots_por_dia - slots_bloqueados
+                # Calcular slots disponíveis
+                if disp_positivas:
+                    # Se há disponibilidades positivas, contar apenas os slots permitidos
+                    slots_disponiveis_count = 0
+                    for disp in disp_positivas:
+                        turno, slots = self._mapear_horario_para_slots(disp.horario_inicio, disp.horario_fim)
+                        slots_disponiveis_count += len(slots)
+                    
+                    # Incluir horas atividade no cálculo
+                    duracao_slot_horas = self.duracao_aula / 60.0
+                    num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
+                    total_necessario = total_aulas_prof + num_slots_atividade
+                    
+                    if total_necessario > slots_disponiveis_count:
+                        self.pendencias.append({
+                            "tipo": "DISPONIBILIDADE_INSUFICIENTE",
+                            "severidade": "ALTA",
+                            "mensagem": f"Professor {professor.nome} não tem horários disponíveis suficientes",
+                            "detalhes": f"Necessita {total_necessario} slots, mas tem apenas {slots_disponiveis_count} disponíveis",
+                            "sugestao": "Adicione mais horários disponíveis para este professor ou redistribua suas aulas",
+                            "professor_id": prof_id
+                        })
+                    elif total_necessario > slots_disponiveis_count * 0.8:
+                        self.pendencias.append({
+                            "tipo": "DISPONIBILIDADE_JUSTA",
+                            "severidade": "MEDIA",
+                            "mensagem": f"Professor {professor.nome} tem poucos horários livres",
+                            "detalhes": f"Utilizará {(total_necessario/slots_disponiveis_count)*100:.1f}% dos horários disponíveis",
+                            "sugestao": "Considere adicionar mais horários disponíveis para melhor distribuição",
+                            "professor_id": prof_id
+                        })
+                else:
+                    # Sem disponibilidades positivas, calcular baseado em bloqueios negativos
+                    slots_totais = len(self.dias_semana) * self.slots_por_dia
+                    slots_bloqueados = 0
+                    
+                    for disp in disp_negativas:
+                        if disp.horario_inicio == "00:00" and disp.horario_fim == "23:59":
+                            # Dia inteiro bloqueado
+                            slots_bloqueados += self.slots_por_dia
+                        else:
+                            turno, slots = self._mapear_horario_para_slots(disp.horario_inicio, disp.horario_fim)
+                            slots_bloqueados += len(slots)
+                    
+                    slots_disponiveis = slots_totais - slots_bloqueados
+                    
+                    duracao_slot_horas = self.duracao_aula / 60.0
+                    num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
+                    total_necessario = total_aulas_prof + num_slots_atividade
+                    
+                    if total_necessario > slots_disponiveis:
+                        self.pendencias.append({
+                            "tipo": "DISPONIBILIDADE_INSUFICIENTE",
+                            "severidade": "ALTA",
+                            "mensagem": f"Professor {professor.nome} tem muitos horários bloqueados",
+                            "detalhes": f"Necessita {total_necessario} slots, mas tem apenas {slots_disponiveis} disponíveis",
+                            "sugestao": "Remova alguns bloqueios de horário ou redistribua as aulas deste professor",
+                            "professor_id": prof_id
+                        })
+            else:
+                # Professor sem disponibilidades cadastradas - alertar se tiver muitas aulas
+                slots_totais = len(self.dias_semana) * self.slots_por_dia
+                duracao_slot_horas = self.duracao_aula / 60.0
+                num_slots_atividade = int(professor.horas_atividade / duracao_slot_horas)
+                total_necessario = total_aulas_prof + num_slots_atividade
                 
-                if total_aulas_prof > slots_disponiveis * 0.8:
+                if total_necessario > slots_totais * 0.5:
                     self.pendencias.append({
-                        "tipo": "DISPONIBILIDADE_INSUFICIENTE",
-                        "severidade": "MEDIA",
-                        "mensagem": f"Professor {professor.nome} tem poucos horários disponíveis",
-                        "sugestao": f"Considere liberar alguns horários bloqueados ou reduzir a carga horária",
+                        "tipo": "SEM_DISPONIBILIDADE_CADASTRADA",
+                        "severidade": "BAIXA",
+                        "mensagem": f"Professor {professor.nome} não tem disponibilidades cadastradas",
+                        "detalhes": f"Este professor tem {total_aulas_prof} aulas semanais",
+                        "sugestao": "Cadastre os horários disponíveis para melhor controle do horário",
                         "professor_id": prof_id
                     })
     
